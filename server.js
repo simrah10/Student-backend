@@ -22,15 +22,56 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
+// Helper to safely format MongoDB URI: handles special characters in password and strips template brackets
+const formatMongoUri = (rawUri) => {
+  if (!rawUri || typeof rawUri !== "string") return rawUri;
+  const trimmed = rawUri.trim();
+
+  const protocolMatch = trimmed.match(/^(mongodb(?:\+srv)?:\/\/)(.*)$/i);
+  if (!protocolMatch) return trimmed;
+  const [, protocol, rest] = protocolMatch;
+
+  const atIndex = rest.lastIndexOf("@");
+  if (atIndex === -1) return trimmed; // No credentials in URI (e.g. local MongoDB)
+
+  const userInfo = rest.slice(0, atIndex);
+  const hostAndRest = rest.slice(atIndex + 1);
+
+  const colonIndex = userInfo.indexOf(":");
+  let username = colonIndex !== -1 ? userInfo.slice(0, colonIndex) : userInfo;
+  let password = colonIndex !== -1 ? userInfo.slice(colonIndex + 1) : "";
+
+  // Strip accidental placeholder angle brackets (< >) from templates
+  if (username.startsWith("<") && username.endsWith(">")) {
+    username = username.slice(1, -1);
+  }
+  if (password.startsWith("<") && password.endsWith(">")) {
+    password = password.slice(1, -1);
+  }
+
+  // Safely URL-encode credentials to handle special characters (@, :, #, %, etc.)
+  const safeEncode = (str) => {
+    try {
+      return encodeURIComponent(decodeURIComponent(str));
+    } catch {
+      return encodeURIComponent(str);
+    }
+  };
+
+  return `${protocol}${safeEncode(username)}:${safeEncode(password)}@${hostAndRest}`;
+};
+
 // MongoDB Database Connection
 const connectDB = async () => {
   if (!MONGO_URI) {
-    console.warn("⚠️  MongoDB Warning: MONGO_URI is not set in .env. Please set MONGO_URI to connect to your database.");
+    console.warn("⚠️  MongoDB Warning: MONGO_URI is not set in environment variables. Please set MONGO_URI to connect to your database.");
     return;
   }
 
+  const cleanUri = formatMongoUri(MONGO_URI);
+
   try {
-    const conn = await mongoose.connect(MONGO_URI);
+    const conn = await mongoose.connect(cleanUri);
     console.log(`✓ MongoDB Connected successfully: ${conn.connection.host}`);
   } catch (error) {
     console.error(`✗ MongoDB Connection Error: ${error.message}`);
@@ -39,18 +80,21 @@ const connectDB = async () => {
 
 connectDB();
 
-// Health Check Endpoint (used by Render and frontend to check API readiness)
-app.get("/api/health", (req, res) => {
+// Health Check Endpoints (used by Render and frontend to check API readiness)
+const healthHandler = (req, res) => {
   const isDbConnected = mongoose.connection.readyState === 1;
   return res.status(200).json({
-    status: "OK",
-    message: "Student Productivity API is running",
+    status: isDbConnected ? "OK" : "DEGRADED",
+    message: isDbConnected ? "Student Productivity API is running" : "Database disconnected",
     environment: process.env.NODE_ENV || "development",
     uptime: Math.floor(process.uptime()),
     database: isDbConnected ? "connected" : "disconnected",
     timestamp: new Date().toISOString()
   });
-});
+};
+
+app.get("/api/health", healthHandler);
+app.get("/health", healthHandler);
 
 // Root welcome route
 app.get("/", (req, res) => {
