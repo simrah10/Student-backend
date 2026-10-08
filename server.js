@@ -109,7 +109,14 @@ app.get("/", (req, res) => {
   });
 });
 
+const path = require("path");
+const authRoutes = require("./routes/authRoutes");
+
+// Serve static frontend files if public folder exists
+app.use(express.static(path.join(__dirname, "public")));
+
 // API Routes
+app.use("/api/auth", authRoutes);
 app.use("/api/tasks", taskRoutes);
 
 // 404 Not Found Handler

@@ -8,6 +8,10 @@ const {
   toggleTaskComplete,
   deleteTask
 } = require("../controllers/taskController");
+const { optionalAuth } = require("../middleware/auth");
+
+// Apply auth middleware to identify user from token
+router.use(optionalAuth);
 
 // Routes for /api/tasks
 router.route("/")

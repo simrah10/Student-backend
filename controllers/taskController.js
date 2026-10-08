@@ -1,28 +1,37 @@
 const mongoose = require("mongoose");
 const Task = require("../models/Task");
 
-// Helper to look up task by either numeric custom id or MongoDB ObjectId
-const findTaskById = async (idParam) => {
+// Helper to look up task by either numeric custom id or MongoDB ObjectId, respecting user ownership
+const findTaskByIdAndUser = async (idParam, userId) => {
+  const query = {};
+  if (userId) {
+    query.userId = userId;
+  }
+
   const numericId = Number(idParam);
   if (!isNaN(numericId)) {
-    const task = await Task.findOne({ id: numericId });
+    const task = await Task.findOne({ id: numericId, ...query });
     if (task) return task;
   }
 
   if (mongoose.Types.ObjectId.isValid(idParam)) {
-    const task = await Task.findById(idParam);
+    const task = await Task.findOne({ _id: idParam, ...query });
     if (task) return task;
   }
 
   return null;
 };
 
-// @desc    Get all tasks
+// @desc    Get tasks (filtered strictly by authenticated user)
 // @route   GET /api/tasks
-// @access  Public
+// @access  Protected / Optional
 const getTasks = async (req, res, next) => {
   try {
-    const tasks = await Task.find().sort({ createdAt: -1 });
+    const filter = {};
+    if (req.user) {
+      filter.userId = req.user._id;
+    }
+    const tasks = await Task.find(filter).sort({ createdAt: -1 });
     return res.status(200).json({
       success: true,
       count: tasks.length,
@@ -33,12 +42,14 @@ const getTasks = async (req, res, next) => {
   }
 };
 
-// @desc    Get single task by id
+// @desc    Get single task by id (scoped to authenticated user)
 // @route   GET /api/tasks/:id
-// @access  Public
+// @access  Protected / Optional
 const getTaskById = async (req, res, next) => {
   try {
-    const task = await findTaskById(req.params.id);
+    const userId = req.user ? req.user._id : null;
+    const task = await findTaskByIdAndUser(req.params.id, userId);
+
     if (!task) {
       return res.status(404).json({
         success: false,
@@ -55,9 +66,9 @@ const getTaskById = async (req, res, next) => {
   }
 };
 
-// @desc    Create a new task
+// @desc    Create a new task associated with authenticated user
 // @route   POST /api/tasks
-// @access  Public
+// @access  Protected / Optional
 const createTask = async (req, res, next) => {
   try {
     const { id, name, subject, category, priority, dueDate, completed } = req.body;
@@ -95,12 +106,13 @@ const createTask = async (req, res, next) => {
 
     const newTask = new Task({
       id: id && !isNaN(Number(id)) ? Number(id) : Date.now(),
+      userId: req.user ? req.user._id : undefined,
       name: name.toString().trim(),
       subject: subject.toString().trim(),
       category: category ? category.toString().trim() : "",
       priority: priorityVal,
       dueDate: dueDate.toString().trim(),
-      completed: typeof completed === "boolean" ? completed : false
+      completed: Boolean(completed)
     });
 
     const savedTask = await newTask.save();
@@ -111,23 +123,24 @@ const createTask = async (req, res, next) => {
       data: savedTask
     });
   } catch (error) {
-    // Handle duplicate key error for custom id
     if (error.code === 11000) {
       return res.status(400).json({
         success: false,
-        message: "Task with this id already exists"
+        message: "A task with this ID already exists"
       });
     }
     next(error);
   }
 };
 
-// @desc    Update an existing task
+// @desc    Update a task (scoped to authenticated user)
 // @route   PUT /api/tasks/:id
-// @access  Public
+// @access  Protected / Optional
 const updateTask = async (req, res, next) => {
   try {
-    const task = await findTaskById(req.params.id);
+    const userId = req.user ? req.user._id : null;
+    const task = await findTaskByIdAndUser(req.params.id, userId);
+
     if (!task) {
       return res.status(404).json({
         success: false,
@@ -157,16 +170,6 @@ const updateTask = async (req, res, next) => {
       task.subject = subject.toString().trim();
     }
 
-    if (dueDate !== undefined) {
-      if (!dueDate.toString().trim()) {
-        return res.status(400).json({
-          success: false,
-          message: "Due date cannot be empty"
-        });
-      }
-      task.dueDate = dueDate.toString().trim();
-    }
-
     if (category !== undefined) {
       task.category = category ? category.toString().trim() : "";
     }
@@ -180,6 +183,16 @@ const updateTask = async (req, res, next) => {
         });
       }
       task.priority = priorityVal;
+    }
+
+    if (dueDate !== undefined) {
+      if (!dueDate.toString().trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "Due date cannot be empty"
+        });
+      }
+      task.dueDate = dueDate.toString().trim();
     }
 
     if (completed !== undefined) {
@@ -198,12 +211,14 @@ const updateTask = async (req, res, next) => {
   }
 };
 
-// @desc    Toggle task completed status
+// @desc    Toggle task completion status (scoped to authenticated user)
 // @route   PATCH /api/tasks/:id/complete
-// @access  Public
+// @access  Protected / Optional
 const toggleTaskComplete = async (req, res, next) => {
   try {
-    const task = await findTaskById(req.params.id);
+    const userId = req.user ? req.user._id : null;
+    const task = await findTaskByIdAndUser(req.params.id, userId);
+
     if (!task) {
       return res.status(404).json({
         success: false,
@@ -224,12 +239,14 @@ const toggleTaskComplete = async (req, res, next) => {
   }
 };
 
-// @desc    Delete a task
+// @desc    Delete a task (scoped to authenticated user)
 // @route   DELETE /api/tasks/:id
-// @access  Public
+// @access  Protected / Optional
 const deleteTask = async (req, res, next) => {
   try {
-    const task = await findTaskById(req.params.id);
+    const userId = req.user ? req.user._id : null;
+    const task = await findTaskByIdAndUser(req.params.id, userId);
+
     if (!task) {
       return res.status(404).json({
         success: false,

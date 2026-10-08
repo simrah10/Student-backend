@@ -5,8 +5,12 @@ const taskSchema = new mongoose.Schema(
     id: {
       type: Number,
       required: true,
-      unique: true,
       default: () => Date.now(),
+      index: true
+    },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
       index: true
     },
     name: {
@@ -47,5 +51,8 @@ const taskSchema = new mongoose.Schema(
     timestamps: true
   }
 );
+
+// Fast compound lookup per user
+taskSchema.index({ userId: 1, id: 1 });
 
 module.exports = mongoose.model("Task", taskSchema);

@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Productivity Management System</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- AUTHENTICATION SCREEN (Shown when user is not authenticated) -->
+    <div id="authScreen" class="auth-screen">
+        <div class="auth-card">
+            <!-- Brand Logo -->
+            <div class="auth-header">
+                <div class="auth-logo">
+                    <div class="logo-icon">🎓</div>
+                    <div>
+                        <h2>StudentFlow</h2>
+                        <p>Productivity System</p>
+                    </div>
+                </div>
+                <h1 id="authTitle">Welcome to StudentFlow</h1>
+                <p id="authSubtitle">Sign in to manage your tasks, schedules, and academic progress.</p>
+            </div>
+
+            <!-- Tab Switcher (Visible for login/signup) -->
+            <div class="auth-tabs" id="authTabs">
+                <button type="button" class="auth-tab active" id="loginTabBtn" onclick="switchAuthMode('login')">
+                    Log In
+                </button>
+                <button type="button" class="auth-tab" id="signupTabBtn" onclick="switchAuthMode('signup')">
+                    Sign Up
+                </button>
+            </div>
+
+            <!-- Alert Message Banner -->
+            <div id="authAlert" class="auth-alert" style="display: none;"></div>
+
+            <!-- 1. LOGIN FORM -->
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                <div class="input-group">
+                    <label for="loginEmail">Email Address</label>
+                    <input type="email" id="loginEmail" placeholder="student@university.edu" required autocomplete="email">
+                </div>
+
+                <div class="input-group">
+                    <div class="input-label-row">
+                        <label for="loginPassword">Password</label>
+                        <a href="javascript:void(0)" class="forgot-link" onclick="switchAuthMode('forgot')">Forgot Password?</a>
+                    </div>
+                    <div class="password-wrapper">
+                        <input type="password" id="loginPassword" placeholder="Enter your password" required autocomplete="current-password">
+                        <button type="button" class="toggle-password" onclick="togglePasswordVisibility('loginPassword', this)" title="Show/Hide Password">👁️</button>
+                    </div>
+                </div>
+
+                <button type="submit" class="auth-submit-btn" id="loginSubmitBtn">
+                    <span>Log In</span>
+                </button>
+
+                <div class="auth-footer">
+                    <span>Don't have an account?</span>
+                    <button type="button" class="auth-toggle-link" onclick="switchAuthMode('signup')">Sign Up</button>
+                </div>
+            </form>
+
+            <!-- 2. SIGN UP FORM -->
+            <form id="signupForm" style="display: none;" onsubmit="handleSignup(event)">
+                <div class="input-group">
+                    <label for="signupName">Full Name</label>
+                    <input type="text" id="signupName" placeholder="e.g. Alex Morgan" required autocomplete="name">
+                </div>
+
+                <div class="input-group">
+                    <label for="signupEmail">Email Address</label>
+                    <input type="email" id="signupEmail" placeholder="student@university.edu" required autocomplete="email">
+                </div>
+
+                <div class="input-group">
+                    <label for="signupPassword">Password</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="signupPassword" placeholder="Minimum 6 characters" required minlength="6" autocomplete="new-password">
+                        <button type="button" class="toggle-password" onclick="togglePasswordVisibility('signupPassword', this)">👁️</button>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="signupConfirmPassword">Confirm Password</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="signupConfirmPassword" placeholder="Re-enter your password" required minlength="6" autocomplete="new-password">
+                        <button type="button" class="toggle-password" onclick="togglePasswordVisibility('signupConfirmPassword', this)">👁️</button>
+                    </div>
+                </div>
+
+                <button type="submit" class="auth-submit-btn" id="signupSubmitBtn">
+                    <span>Create Account</span>
+                </button>
+
+                <div class="auth-footer">
+                    <span>Already have an account?</span>
+                    <button type="button" class="auth-toggle-link" onclick="switchAuthMode('login')">Log In</button>
+                </div>
+            </form>
+
+            <!-- 3. FORGOT PASSWORD FORM -->
+            <form id="forgotForm" style="display: none;" onsubmit="handleForgotPassword(event)">
+                <div class="input-group">
+                    <label for="forgotEmail">Registered Email Address</label>
+                    <input type="email" id="forgotEmail" placeholder="student@university.edu" required autocomplete="email">
+                </div>
+
+                <button type="submit" class="auth-submit-btn" id="forgotSubmitBtn">
+                    <span>Send Reset Instructions</span>
+                </button>
+
+                <div class="auth-footer">
+                    <button type="button" class="auth-toggle-link" onclick="switchAuthMode('login')">← Back to Log In</button>
+                </div>
+            </form>
+
+            <!-- 4. RESET PASSWORD FORM -->
+            <form id="resetForm" style="display: none;" onsubmit="handleResetPassword(event)">
+                <div class="input-group">
+                    <label for="resetTokenInput">Reset Token</label>
+                    <input type="text" id="resetTokenInput" placeholder="Paste your 64-character reset token" required>
+                </div>
+
+                <div class="input-group">
+                    <label for="newPassword">New Password</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="newPassword" placeholder="Minimum 6 characters" required minlength="6" autocomplete="new-password">
+                        <button type="button" class="toggle-password" onclick="togglePasswordVisibility('newPassword', this)">👁️</button>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="confirmNewPassword">Confirm New Password</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="confirmNewPassword" placeholder="Re-enter new password" required minlength="6" autocomplete="new-password">
+                        <button type="button" class="toggle-password" onclick="togglePasswordVisibility('confirmNewPassword', this)">👁️</button>
+                    </div>
+                </div>
+
+                <button type="submit" class="auth-submit-btn" id="resetSubmitBtn">
+                    <span>Set New Password</span>
+                </button>
+
+                <div class="auth-footer">
+                    <button type="button" class="auth-toggle-link" onclick="switchAuthMode('login')">← Back to Log In</button>
+                </div>
+            </form>
+
+        </div>
+    </div>
+
+    <!-- PROTECTED STUDENTFLOW DASHBOARD (Only visible when authenticated) -->
+    <div class="app" id="mainApp" style="display: none;">
+
+        <!-- Sidebar -->
+        <aside class="sidebar">
+
+            <div class="logo">
+                <div class="logo-icon">🎓</div>
+
+                <div>
+                    <h2>StudentFlow</h2>
+                    <p>Productivity System</p>
+                </div>
+            </div>
+
+            <nav>
+                <button class="nav-item active" id="dashboardBtn">
+                    <span>📊</span>
+                    Dashboard
+                </button>
+
+                <button class="nav-item" id="myTasksBtn">
+                    <span>📝</span>
+                    My Tasks
+                </button>
+
+                <button class="nav-item" id="pendingBtn">
+                    <span>⏳</span>
+                    Pending
+                </button>
+
+                <button class="nav-item" id="completedBtn">
+                    <span>✅</span>
+                    Completed
+                </button>
+
+                <button class="nav-item" id="overdueBtn">
+                    <span>⚠️</span>
+                    Overdue
+                </button>
+
+                <button class="nav-item" id="statisticsBtn">
+                    <span>📈</span>
+                    Statistics
+                </button>
+            </nav>
+
+            <!-- Authenticated User Sidebar Badge -->
+            <div class="sidebar-user-section">
+                <div class="user-profile-badge">
+                    <div id="sidebarUserInitials" class="user-initials">S</div>
+                    <div class="user-badge-details">
+                        <span id="sidebarUserName" class="user-badge-name">Student</span>
+                        <span id="sidebarUserEmail" class="user-badge-email">student@university.edu</span>
+                    </div>
+                </div>
+                <button type="button" class="logout-btn" onclick="handleLogout()">
+                    <span>⎋</span> Log Out
+                </button>
+            </div>
+
+            <div class="sidebar-bottom">
+                <p>Student Productivity</p>
+                <small>Academic Task Management</small>
+            </div>
+
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+
+            <header class="topbar">
+
+                <div>
+                    <h1>Dashboard</h1>
+                    <p>Manage your academic tasks efficiently.</p>
+                </div>
+
+                <div class="topbar-actions">
+                    <div class="topbar-user-badge">
+                        <div id="topbarUserInitials" class="user-initials">S</div>
+                        <div class="topbar-user-text">
+                            <strong id="topbarUserName">Student</strong>
+                        </div>
+                    </div>
+                    <button class="logout-btn-top" onclick="handleLogout()" title="Log out">
+                        <span>⎋</span> Log Out
+                    </button>
+                    <button class="add-main-btn" onclick="openTaskForm()">
+                        + Add Task
+                    </button>
+                </div>
+
+            </header>
+
+            <!-- Dashboard Cards -->
+            <section class="dashboard">
+
+                <div class="stat-card">
+                    <div class="stat-icon">📚</div>
+
+                    <div>
+                        <p>Total Tasks</p>
+                        <h2 id="totalTasks">0</h2>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon">✅</div>
+
+                    <div>
+                        <p>Completed</p>
+                        <h2 id="completedTasks">0</h2>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon">⏳</div>
+
+                    <div>
+                        <p>Pending</p>
+                        <h2 id="pendingTasks">0</h2>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon">⚠️</div>
+
+                    <div>
+                        <p>Overdue</p>
+                        <h2 id="overdueTasks">0</h2>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- Progress -->
+            <section class="progress-section">
+
+                <div class="progress-header">
+                    <div>
+                        <h2>Overall Progress</h2>
+                        <p>Track your completed academic tasks.</p>
+                    </div>
+
+                    <strong id="progressText">0%</strong>
+                </div>
+
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+
+            </section>
+
+            <!-- Task Form -->
+            <section class="task-form" id="taskForm">
+
+                <div class="section-heading">
+
+                    <div>
+                        <h2 id="formHeading">Add New Task</h2>
+                        <p>Enter the details of your academic task.</p>
+                    </div>
+
+                </div>
+
+                <div class="form-grid">
+
+                    <div class="input-group">
+                        <label for="taskInput">Task Name</label>
+
+                        <input
+                            type="text"
+                            id="taskInput"
+                            placeholder="e.g. Complete Java assignment"
+                        >
+                    </div>
+
+                    <div class="input-group">
+                        <label for="subjectInput">Subject</label>
+
+                        <input
+                            type="text"
+                            id="subjectInput"
+                            placeholder="e.g. Java"
+                        >
+                    </div>
+
+                    <div class="input-group">
+                        <label for="categoryInput">Category</label>
+
+                        <input
+                            type="text"
+                            id="categoryInput"
+                            placeholder="e.g. Assignment"
+                        >
+                    </div>
+
+                    <div class="input-group">
+                        <label for="priorityInput">Priority</label>
+
+                        <select id="priorityInput">
+                            <option value="1">Low</option>
+                            <option value="2">Medium</option>
+                            <option value="3">High</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="dueDateInput">Due Date</label>
+
+                        <input
+                            type="date"
+                            id="dueDateInput"
+                        >
+                    </div>
+
+                </div>
+
+                <div class="form-buttons">
+
+                    <button class="primary-btn" id="saveTaskBtn" onclick="addTask()">
+                        Add Task
+                    </button>
+
+                    <button class="secondary-btn" onclick="clearForm()">
+                        Clear
+                    </button>
+
+                </div>
+
+            </section>
+
+            <!-- Tasks -->
+            <section class="tasks-section" id="tasksSection">
+
+                <div class="tasks-header">
+
+                    <div>
+                        <h2>My Tasks</h2>
+                        <p>Keep track of your academic activities.</p>
+                    </div>
+
+                    <div class="task-controls">
+
+                        <div class="search-box">
+                            <span>🔍</span>
+                            <input
+                                type="text"
+                                id="searchInput"
+                                placeholder="Search tasks..."
+                                onkeyup="displayTasks()"
+                            >
+                        </div>
+
+                        <select id="sortSelect" onchange="displayTasks()">
+                            <option value="default">Sort Tasks</option>
+                            <option value="priorityHigh">Priority: High to Low</option>
+                            <option value="priorityLow">Priority: Low to High</option>
+                            <option value="dueSoon">Due Date: Earliest First</option>
+                            <option value="dueLate">Due Date: Latest First</option>
+                        </select>
+
+                        <button class="clear-view-btn" onclick="clearTaskView()">
+                            Clear
+                        </button>
+
+                    </div>
+
+                </div>
+
+                <div id="taskList"></div>
+
+            </section>
+
+            <!-- Statistics -->
+            <section class="statistics-section" id="statisticsSection">
+
+                <div class="section-heading">
+                    <div>
+                        <h2>Statistics</h2>
+                        <p>View your academic productivity summary.</p>
+                    </div>
+                </div>
+
+                <div class="statistics-grid">
+
+                    <div class="statistics-card">
+                        <p>Total Tasks</p>
+                        <h2 id="statsTotal">0</h2>
+                    </div>
+
+                    <div class="statistics-card">
+                        <p>Completed Tasks</p>
+                        <h2 id="statsCompleted">0</h2>
+                    </div>
+
+                    <div class="statistics-card">
+                        <p>Pending Tasks</p>
+                        <h2 id="statsPending">0</h2>
+                    </div>
+
+                    <div class="statistics-card">
+                        <p>Overdue Tasks</p>
+                        <h2 id="statsOverdue">0</h2>
+                    </div>
+
+                </div>
+
+            </section>
+
+            <!-- Subject Summary -->
+            <section class="summary-section" id="subjectSummarySection">
+
+                <div class="section-heading">
+                    <div>
+                        <h2>Subject Summary</h2>
+                        <p>View the number of tasks assigned to each subject.</p>
+                    </div>
+                </div>
+
+                <div id="subjectSummary"></div>
+
+            </section>
+
+            <!-- Category Summary -->
+            <section class="summary-section" id="categorySummarySection">
+
+                <div class="section-heading">
+                    <div>
+                        <h2>Category Summary</h2>
+                        <p>View the number of tasks in each category.</p>
+                    </div>
+                </div>
+
+                <div id="categorySummary"></div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <script src="script.js"></script>
+
+</body>
+
+</html>
