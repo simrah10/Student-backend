@@ -1,4 +1,5 @@
 require("dotenv").config();
+const path = require("path");
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -96,8 +97,11 @@ const healthHandler = (req, res) => {
 app.get("/api/health", healthHandler);
 app.get("/health", healthHandler);
 
-// Root welcome route
-app.get("/", (req, res) => {
+// Serve static frontend files if public folder exists
+app.use(express.static(path.join(__dirname, "public")));
+
+// API status route
+app.get("/api", (req, res) => {
   return res.status(200).json({
     status: "OK",
     message: "Student Productivity Backend API is active",
@@ -109,11 +113,7 @@ app.get("/", (req, res) => {
   });
 });
 
-const path = require("path");
 const authRoutes = require("./routes/authRoutes");
-
-// Serve static frontend files if public folder exists
-app.use(express.static(path.join(__dirname, "public")));
 
 // API Routes
 app.use("/api/auth", authRoutes);
