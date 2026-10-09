@@ -8,10 +8,10 @@ const {
   toggleTaskComplete,
   deleteTask
 } = require("../controllers/taskController");
-const { optionalAuth } = require("../middleware/auth");
+const { protect } = require("../middleware/auth");
 
-// Apply auth middleware to identify user from token
-router.use(optionalAuth);
+// Require authentication for all task operations (strict user isolation)
+router.use(protect);
 
 // Routes for /api/tasks
 router.route("/")

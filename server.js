@@ -11,10 +11,19 @@ const MONGO_URI = process.env.MONGO_URI;
 
 // CORS Configuration (supports frontend on Render, Vercel, or local dev)
 const clientUrl = process.env.CLIENT_URL;
+const allowedOrigins = clientUrl && clientUrl !== "*"
+  ? clientUrl.split(",").map((origin) => origin.trim())
+  : null;
+
 const corsOptions = {
-  origin: clientUrl && clientUrl !== "*"
-    ? clientUrl.split(",").map((origin) => origin.trim())
-    : "*",
+  origin: (origin, callback) => {
+    // Allow server-to-server, curl, mobile apps, or same-origin requests (origin is undefined)
+    if (!origin) return callback(null, true);
+    if (!allowedOrigins || allowedOrigins.includes("*") || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS policy does not allow access from origin ${origin}`));
+  },
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "x-api-key"],
   credentials: true

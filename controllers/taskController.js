@@ -3,10 +3,8 @@ const Task = require("../models/Task");
 
 // Helper to look up task by either numeric custom id or MongoDB ObjectId, respecting user ownership
 const findTaskByIdAndUser = async (idParam, userId) => {
-  const query = {};
-  if (userId) {
-    query.userId = userId;
-  }
+  if (!userId) return null;
+  const query = { userId };
 
   const numericId = Number(idParam);
   if (!isNaN(numericId)) {
@@ -27,11 +25,7 @@ const findTaskByIdAndUser = async (idParam, userId) => {
 // @access  Protected / Optional
 const getTasks = async (req, res, next) => {
   try {
-    const filter = {};
-    if (req.user) {
-      filter.userId = req.user._id;
-    }
-    const tasks = await Task.find(filter).sort({ createdAt: -1 });
+    const tasks = await Task.find({ userId: req.user._id }).sort({ createdAt: -1 });
     return res.status(200).json({
       success: true,
       count: tasks.length,
@@ -106,7 +100,7 @@ const createTask = async (req, res, next) => {
 
     const newTask = new Task({
       id: id && !isNaN(Number(id)) ? Number(id) : Date.now(),
-      userId: req.user ? req.user._id : undefined,
+      userId: req.user._id,
       name: name.toString().trim(),
       subject: subject.toString().trim(),
       category: category ? category.toString().trim() : "",

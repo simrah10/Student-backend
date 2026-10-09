@@ -53,22 +53,27 @@ async function runTests() {
     console.log(`✓ Express test server listening on port ${PORT}`);
 
     // Helper for making requests
-    const api = async (method, path, body = null) => {
+    let authToken = null;
+    const api = async (method, path, body = null, token = authToken) => {
+      const headers = {
+        "Content-Type": "application/json"
+      };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
       const options = {
         hostname: "localhost",
         port: PORT,
         path,
         method,
-        headers: {
-          "Content-Type": "application/json"
-        }
+        headers
       };
       return await request(options, body);
     };
 
     // 3. Test Health Endpoint
-    console.log("\n[3/10] Testing GET /api/health...");
-    const healthRes = await api("GET", "/api/health");
+    console.log("\n[3/11] Testing GET /api/health...");
+    const healthRes = await api("GET", "/api/health", null, null);
     console.log("Response:", healthRes);
     if (healthRes.status === 200 && healthRes.body.status === "OK") {
       console.log("✓ Health check PASSED!");
@@ -76,8 +81,39 @@ async function runTests() {
       throw new Error(`Health check failed: ${JSON.stringify(healthRes)}`);
     }
 
-    // 4. Test Validation on Create Task
-    console.log("\n[4/10] Testing Validation on POST /api/tasks (missing required fields)...");
+    // 4. Test Unauthenticated Access is Blocked with 401
+    console.log("\n[4/11] Testing Unauthenticated Access on GET & POST /api/tasks (Security Check)...");
+    const unauthGet = await api("GET", "/api/tasks", null, null);
+    if (unauthGet.status === 401) {
+      console.log("✓ Correctly rejected unauthenticated GET /api/tasks with 401 Unauthorized");
+    } else {
+      throw new Error("Unauthenticated GET was not rejected: " + JSON.stringify(unauthGet));
+    }
+
+    const unauthPost = await api("POST", "/api/tasks", { name: "Unauthorized Task" }, null);
+    if (unauthPost.status === 401) {
+      console.log("✓ Correctly rejected unauthenticated POST /api/tasks with 401 Unauthorized");
+    } else {
+      throw new Error("Unauthenticated POST was not rejected: " + JSON.stringify(unauthPost));
+    }
+
+    // 5. Register Test User to Authenticate Task Tests
+    console.log("\n[5/11] Registering test user to authenticate subsequent task tests...");
+    const regRes = await api("POST", "/api/auth/register", {
+      name: "API Tester",
+      email: "apitester@university.edu",
+      password: "password123",
+      confirmPassword: "password123"
+    }, null);
+    if (regRes.status === 201 && regRes.body.token) {
+      authToken = regRes.body.token;
+      console.log("✓ Test user registered, authenticated JWT obtained!");
+    } else {
+      throw new Error("Failed to register test user: " + JSON.stringify(regRes));
+    }
+
+    // 6. Test Validation on Create Task
+    console.log("\n[6/11] Testing Validation on POST /api/tasks (missing required fields)...");
     const invalidRes1 = await api("POST", "/api/tasks", { name: "Incomplete task" });
     if (invalidRes1.status === 400 && invalidRes1.body.success === false) {
       console.log("✓ Correctly rejected missing subject with 400 Bad Request");
@@ -97,8 +133,8 @@ async function runTests() {
       throw new Error("Priority validation failed: " + JSON.stringify(invalidRes2));
     }
 
-    // 5. Test Creating a Task (POST /api/tasks)
-    console.log("\n[5/10] Testing POST /api/tasks (Valid task creation)...");
+    // 7. Test Creating a Task (POST /api/tasks)
+    console.log("\n[7/11] Testing POST /api/tasks (Valid task creation)...");
     const newTaskPayload = {
       name: "Complete Java Final Project",
       subject: "Computer Science",

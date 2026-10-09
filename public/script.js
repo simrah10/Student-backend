@@ -4,12 +4,33 @@
  */
 
 // Dynamic API Base URL Configuration:
-// Works whether served together on Render or locally via Live Server / file://
-const API_BASE_URL = window.location.origin.includes("5500") ||
-  window.location.origin.includes("3000") ||
-  window.location.protocol === "file:"
-    ? "http://localhost:5000/api"
-    : "/api";
+// 1. Configurable via window.STUDENTFLOW_API_URL, localStorage ("studentflow_api_base_url"), or meta tag
+// 2. Uses relative "/api" when served by the backend (Render, localhost:5000, etc.)
+// 3. Defaults to "http://localhost:5000/api" only when running locally on another dev port / file://
+function getApiBaseUrl() {
+    const metaTag = document.querySelector('meta[name="api-base-url"]');
+    const customUrl = window.STUDENTFLOW_API_URL ||
+        localStorage.getItem("studentflow_api_base_url") ||
+        (metaTag ? metaTag.getAttribute("content") : null);
+
+    if (customUrl && customUrl.trim()) {
+        return customUrl.trim().replace(/\/+$/, "");
+    }
+
+    const isLocalFrontendOnly =
+        window.location.protocol === "file:" ||
+        ((window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") &&
+         window.location.port !== "" &&
+         window.location.port !== "5000");
+
+    if (isLocalFrontendOnly) {
+        return "http://localhost:5000/api";
+    }
+
+    return "/api";
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 // Application State
 let tasks = [];

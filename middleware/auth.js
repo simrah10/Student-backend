@@ -2,7 +2,13 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
 // Dynamic JWT secret getter so changes to process.env are respected
-const getJwtSecret = () => process.env.JWT_SECRET || "studentflow_jwt_secret_dev_2026";
+const getJwtSecret = () => {
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  if (process.env.NODE_ENV === "production") {
+    console.warn("⚠️ SECURITY WARNING: JWT_SECRET is not set in production. Please set JWT_SECRET in your Render environment variables.");
+  }
+  return "studentflow_jwt_secret_dev_2026";
+};
 
 /**
  * Protect middleware:

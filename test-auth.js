@@ -223,8 +223,33 @@ async function runAuthTests() {
       throw new Error("TASK ISOLATION BREACH: User B was able to modify/delete User A's task");
     }
 
+    // 13. Verify GET /api/auth/me (Protected User Profile)
+    console.log("\n[13/14] Testing GET /api/auth/me (Profile Verification)...");
+    const meUnauth = await api("GET", "/api/auth/me", null, null);
+    if (meUnauth.status === 401) {
+      console.log("✓ Correctly rejected unauthenticated /api/auth/me with 401 Unauthorized!");
+    } else {
+      throw new Error("Failed to protect /api/auth/me");
+    }
+
+    const meAuthA = await api("GET", "/api/auth/me", null, tokenA);
+    if (meAuthA.status === 200 && meAuthA.body.user.email === "emma@oxford.edu") {
+      console.log("✓ User A profile retrieved via /api/auth/me successfully!");
+    } else {
+      throw new Error("Failed to retrieve user profile via /api/auth/me: " + JSON.stringify(meAuthA.body));
+    }
+
+    // 14. Verify POST /api/auth/logout
+    console.log("\n[14/14] Testing POST /api/auth/logout...");
+    const logoutRes = await api("POST", "/api/auth/logout", null, tokenA);
+    if (logoutRes.status === 200 && logoutRes.body.success) {
+      console.log("✓ User logged out successfully!");
+    } else {
+      throw new Error("Logout failed: " + JSON.stringify(logoutRes.body));
+    }
+
     console.log("\n==================================================================");
-    console.log("🎉 ALL 12 AUTHENTICATION & TASK ISOLATION TESTS PASSED 100%! 🎉");
+    console.log("🎉 ALL 14 AUTHENTICATION & TASK ISOLATION TESTS PASSED 100%! 🎉");
     console.log("==================================================================\n");
 
   } finally {
