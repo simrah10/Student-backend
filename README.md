@@ -56,6 +56,11 @@ Define the following variables:
 | :--- | :--- | :--- |
 | `PORT` | Port number on which the server listens | `5000` |
 | `MONGO_URI` | MongoDB connection URI string | `mongodb://localhost:27017/student-productivity` or MongoDB Atlas URI |
+| `JWT_SECRET` | Secret key for signing authentication JWT tokens | Secure random string (e.g. 64-char hex) |
+| `CLIENT_URL` | Allowed CORS frontend origins (comma-separated or `*`) | `https://studentflow.onrender.com` or `*` |
+| `RESEND_API_KEY` | Resend API Key for sending password reset emails | `re_123456789...` |
+| `RESEND_FROM_EMAIL` | Sender email address for password reset emails | `StudentFlow <onboarding@resend.dev>` or verified domain |
+| `FRONTEND_URL` | Frontend base URL for generating password reset links | `http://localhost:5000` or production frontend URL |
 
 ---
 

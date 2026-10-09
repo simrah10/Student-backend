@@ -71,15 +71,38 @@ let editingTaskId = null;
 // INITIALIZATION & SESSION RESTORATION
 // ============================================================
 
+/**
+ * Safely extracts password reset token from URL query parameters or hash
+ * Supports: ?token=..., ?resetToken=..., #token=..., #?token=...
+ */
+function getResetTokenFromUrl() {
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        let token = urlParams.get("token") || urlParams.get("resetToken");
+        if (token && token.trim()) return token.trim();
+
+        if (window.location.hash) {
+            const hash = window.location.hash.substring(1);
+            const hashParams = new URLSearchParams(hash.startsWith("?") ? hash : "?" + hash);
+            token = hashParams.get("token") || hashParams.get("resetToken");
+            if (token && token.trim()) return token.trim();
+        }
+    } catch (e) {
+        console.warn("Could not extract reset token from URL:", e);
+    }
+    return null;
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
-    // 1. Check for URL parameters (e.g. ?token=xxxx for reset password)
-    const urlParams = new URLSearchParams(window.location.search);
-    const resetTokenParam = urlParams.get("token") || urlParams.get("resetToken");
+    // 1. Check for URL parameters (e.g. ?token=xxxx from emailed reset link)
+    const resetTokenParam = getResetTokenFromUrl();
 
     if (resetTokenParam) {
         switchAuthMode("reset");
         const tokenInput = document.getElementById("resetTokenInput");
         if (tokenInput) tokenInput.value = resetTokenParam;
+        const resetTokenGroup = document.getElementById("resetTokenGroup");
+        if (resetTokenGroup) resetTokenGroup.style.display = "none";
         return;
     }
 
@@ -243,7 +266,8 @@ async function handleSignup(event) {
 async function handleForgotPassword(event) {
     event.preventDefault();
 
-    const email = document.getElementById("forgotEmail").value.trim();
+    const emailInput = document.getElementById("forgotEmail");
+    const email = emailInput ? emailInput.value.trim() : "";
     const submitBtn = document.getElementById("forgotSubmitBtn");
 
     if (!email) {
@@ -251,7 +275,13 @@ async function handleForgotPassword(event) {
         return;
     }
 
-    setBtnLoading(submitBtn, true, "Generating Reset Link...");
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        showAuthAlert("Please enter a valid email address.", "error");
+        return;
+    }
+
+    setBtnLoading(submitBtn, true, "Sending Reset Link...");
     clearAuthAlert();
 
     try {
@@ -264,22 +294,17 @@ async function handleForgotPassword(event) {
         const data = await res.json();
 
         if (res.ok && data.success) {
-            showAuthAlert(data.message, "success");
-
-            // In local/development testing, if resetToken was returned, automatically transition to reset form
-            if (data.resetToken) {
-                setTimeout(() => {
-                    switchAuthMode("reset");
-                    const tokenInput = document.getElementById("resetTokenInput");
-                    if (tokenInput) tokenInput.value = data.resetToken;
-                    showAuthAlert("Reset token auto-filled! Please enter your new password below.", "success");
-                }, 1000);
-            }
+            // Display clear generic confirmation message
+            showAuthAlert(
+                data.message || "If an account with that email exists, password reset instructions have been sent to your email. Please check your inbox and spam folder.",
+                "success"
+            );
+            if (emailInput) emailInput.value = "";
         } else {
-            showAuthAlert(data.message || "Failed to process request", "error");
+            showAuthAlert(data.message || "Unable to process password reset request. Please try again later.", "error");
         }
     } catch (err) {
-        showAuthAlert(`Unable to connect to server: ${err.message}`, "error");
+        showAuthAlert("Network error: Could not reach authentication server. Please check your connection and try again.", "error");
     } finally {
         setBtnLoading(submitBtn, false, "Send Reset Instructions");
     }
@@ -291,13 +316,21 @@ async function handleForgotPassword(event) {
 async function handleResetPassword(event) {
     event.preventDefault();
 
-    const token = document.getElementById("resetTokenInput").value.trim();
-    const password = document.getElementById("newPassword").value;
-    const confirmPassword = document.getElementById("confirmNewPassword").value;
+    const tokenInput = document.getElementById("resetTokenInput");
+    const token = (tokenInput ? tokenInput.value.trim() : "") || getResetTokenFromUrl();
+    const newPasswordInput = document.getElementById("newPassword");
+    const confirmNewPasswordInput = document.getElementById("confirmNewPassword");
+    const password = newPasswordInput ? newPasswordInput.value : "";
+    const confirmPassword = confirmNewPasswordInput ? confirmNewPasswordInput.value : "";
     const submitBtn = document.getElementById("resetSubmitBtn");
 
-    if (!token || !password || !confirmPassword) {
-        showAuthAlert("Please fill in all fields.", "error");
+    if (!token) {
+        showAuthAlert("Password reset link is invalid or missing a token. Please request a new reset link.", "error");
+        return;
+    }
+
+    if (!password || !confirmPassword) {
+        showAuthAlert("Please fill in both password fields.", "error");
         return;
     }
 
@@ -324,20 +357,27 @@ async function handleResetPassword(event) {
         const data = await res.json();
 
         if (res.ok && data.success) {
-            localStorage.setItem("studentflow_token", data.token);
-            localStorage.setItem("studentflow_user", JSON.stringify(data.user));
-            currentUser = data.user;
+            // Remove token from browser URL address bar
+            if (window.history && window.history.replaceState) {
+                const cleanUrl = window.location.pathname;
+                window.history.replaceState({}, document.title, cleanUrl);
+            }
 
-            showAuthAlert("Password updated successfully! Welcome back.", "success");
-            setTimeout(async () => {
-                showDashboardScreen();
-                await loadUserTasks();
-            }, 600);
+            // Clear inputs
+            if (tokenInput) tokenInput.value = "";
+            if (newPasswordInput) newPasswordInput.value = "";
+            if (confirmNewPasswordInput) confirmNewPasswordInput.value = "";
+
+            // Direct user to existing login page
+            switchAuthMode("login");
+            showAuthAlert("Password reset successfully! Please log in with your new password.", "success");
         } else {
-            showAuthAlert(data.message || "Invalid or expired token", "error");
+            // Display invalid, expired, or backend error message
+            const errorMsg = data.message || "Invalid or expired password reset link. Please request a new one.";
+            showAuthAlert(errorMsg, "error");
         }
     } catch (err) {
-        showAuthAlert(`Network error: ${err.message}`, "error");
+        showAuthAlert("Network error: Could not reach authentication server. Please try again.", "error");
     } finally {
         setBtnLoading(submitBtn, false, "Set New Password");
     }
@@ -418,12 +458,22 @@ function switchAuthMode(mode) {
         authTabs.style.display = "none";
         forgotForm.style.display = "block";
         authTitle.textContent = "Reset Password";
-        authSubtitle.textContent = "Enter your email address and we'll generate your secure reset instructions.";
+        authSubtitle.textContent = "Enter your email address and we'll send a secure reset link to your inbox.";
     } else if (mode === "reset") {
         authTabs.style.display = "none";
         resetForm.style.display = "block";
         authTitle.textContent = "Create New Password";
-        authSubtitle.textContent = "Enter your reset token and your new password to restore access.";
+
+        const tokenInput = document.getElementById("resetTokenInput");
+        const resetTokenGroup = document.getElementById("resetTokenGroup");
+        const hasToken = (tokenInput && tokenInput.value.trim()) || getResetTokenFromUrl();
+        if (hasToken) {
+            if (resetTokenGroup) resetTokenGroup.style.display = "none";
+            authSubtitle.textContent = "Enter your new password below to restore access.";
+        } else {
+            if (resetTokenGroup) resetTokenGroup.style.display = "block";
+            authSubtitle.textContent = "Enter your reset token and your new password to restore access.";
+        }
     }
 }
 

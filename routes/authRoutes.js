@@ -9,11 +9,12 @@ const {
   logout
 } = require("../controllers/authController");
 const { protect } = require("../middleware/auth");
+const { forgotPasswordRateLimiter } = require("../middleware/rateLimiter");
 
 // Public routes
 router.post("/register", register);
 router.post("/login", login);
-router.post("/forgot-password", forgotPassword);
+router.post("/forgot-password", forgotPasswordRateLimiter, forgotPassword);
 router.post("/reset-password", resetPassword);
 router.post("/logout", logout);
 

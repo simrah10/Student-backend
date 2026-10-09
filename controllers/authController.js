@@ -3,6 +3,22 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { getJwtSecret } = require("../middleware/auth");
+const { sendPasswordResetEmail } = require("../services/emailService");
+
+// Resolve frontend base URL for password reset links
+const getFrontendUrl = () => {
+  if (process.env.FRONTEND_URL && process.env.FRONTEND_URL.trim()) {
+    return process.env.FRONTEND_URL.trim().replace(/\/+$/, "");
+  }
+  if (process.env.RENDER_EXTERNAL_URL && process.env.RENDER_EXTERNAL_URL.trim()) {
+    return process.env.RENDER_EXTERNAL_URL.trim().replace(/\/+$/, "");
+  }
+  if (process.env.CLIENT_URL && process.env.CLIENT_URL.trim() && process.env.CLIENT_URL !== "*") {
+    const firstOrigin = process.env.CLIENT_URL.split(",")[0].trim();
+    if (firstOrigin && firstOrigin !== "*") return firstOrigin.replace(/\/+$/, "");
+  }
+  return `http://localhost:${process.env.PORT || 5000}`;
+};
 
 /**
  * Generate signed JWT token
@@ -150,7 +166,7 @@ const login = async (req, res, next) => {
   }
 };
 
-// @desc    Request password reset token
+// @desc    Request password reset link via Resend email
 // @route   POST /api/auth/forgot-password
 // @access  Public
 const forgotPassword = async (req, res, next) => {
@@ -164,36 +180,50 @@ const forgotPassword = async (req, res, next) => {
       });
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter a valid email address"
+      });
+    }
+
     const normalizedEmail = email.toLowerCase().trim();
     const user = await User.findOne({ email: normalizedEmail });
 
-    let resetToken = null;
-
     if (user) {
       // Generate 32-byte secure random token
-      resetToken = crypto.randomBytes(32).toString("hex");
+      const resetToken = crypto.randomBytes(32).toString("hex");
 
-      // Hash token before storing in MongoDB
+      // Store SHA-256 hash in database with 15-minute expiry
       const hashedToken = crypto.createHash("sha256").update(resetToken).digest("hex");
       user.resetPasswordToken = hashedToken;
-      user.resetPasswordExpire = Date.now() + 15 * 60 * 1000; // 15 minutes validity
+      user.resetPasswordExpire = Date.now() + 15 * 60 * 1000;
       await user.save();
 
-      console.log(`[PASSWORD_RESET] Reset token generated for ${normalizedEmail}. Valid for 15 minutes.`);
+      // Construct frontend reset URL
+      const frontendBase = getFrontendUrl();
+      const resetUrl = `${frontendBase}/?token=${encodeURIComponent(resetToken)}`;
+
+      // Dispatch reset email via Resend (never log or expose token)
+      try {
+        await sendPasswordResetEmail({
+          to: normalizedEmail,
+          name: user.name,
+          resetUrl,
+          resetToken
+        });
+        console.log(`[AUTH] Password reset email queued for ${normalizedEmail}`);
+      } catch (emailError) {
+        console.error(`[EMAIL ERROR] Failed to send reset email to ${normalizedEmail}:`, emailError.message);
+      }
     }
 
     // Always return generic success message to prevent user enumeration
-    const responseData = {
+    return res.status(200).json({
       success: true,
-      message: "If an account with that email exists, password reset instructions have been generated."
-    };
-
-    // Include reset token in non-production environments to allow testing and immediate local resets
-    if (process.env.NODE_ENV !== "production" && resetToken) {
-      responseData.resetToken = resetToken;
-    }
-
-    return res.status(200).json(responseData);
+      message: "If an account with that email exists, password reset instructions have been sent to your email."
+    });
   } catch (error) {
     next(error);
   }

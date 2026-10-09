@@ -125,9 +125,9 @@
 
             <!-- 4. RESET PASSWORD FORM -->
             <form id="resetForm" style="display: none;" onsubmit="handleResetPassword(event)">
-                <div class="input-group">
+                <div class="input-group" id="resetTokenGroup">
                     <label for="resetTokenInput">Reset Token</label>
-                    <input type="text" id="resetTokenInput" placeholder="Paste your 64-character reset token" required>
+                    <input type="text" id="resetTokenInput" placeholder="Paste your 64-character reset token">
                 </div>
 
                 <div class="input-group">
