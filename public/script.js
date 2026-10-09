@@ -3,23 +3,45 @@
  * Complete Email/Password Authentication & User-Specific Task Persistence
  */
 
-// Dynamic API Base URL Configuration:
-// 1. Configurable via window.STUDENTFLOW_API_URL, localStorage ("studentflow_api_base_url"), or meta tag
-// 2. Uses relative "/api" when served by the backend (Render, localhost:5000, etc.)
-// 3. Defaults to "http://localhost:5000/api" only when running locally on another dev port / file://
-function getApiBaseUrl() {
-    const metaTag = document.querySelector('meta[name="api-base-url"]');
-    const customUrl = window.STUDENTFLOW_API_URL ||
-        localStorage.getItem("studentflow_api_base_url") ||
-        (metaTag ? metaTag.getAttribute("content") : null);
+// Production API Base URL
+const PRODUCTION_API_URL = "https://student-backend-wdxq.onrender.com/api";
 
-    if (customUrl && customUrl.trim()) {
-        return customUrl.trim().replace(/\/+$/, "");
+/**
+ * Resolve the API Base URL based on hosting environment
+ * - Priority 1: Explicit window.STUDENTFLOW_API_URL or localStorage ("studentflow_api_base_url")
+ * - Priority 2: GitHub Pages (*.github.io) -> ALWAYS uses PRODUCTION_API_URL (never /api or localhost)
+ * - Priority 3: HTML Meta tag <meta name="api-base-url" content="..."> (if configured)
+ * - Priority 4: Local development (file://, localhost dev server on port other than 5000) -> http://localhost:5000/api
+ * - Priority 5: Backend same-origin hosting (localhost:5000 or same origin) -> /api
+ * - Default: PRODUCTION_API_URL
+ */
+function getApiBaseUrl() {
+    // 1. Runtime override via window or localStorage
+    const runtimeOverride = window.STUDENTFLOW_API_URL ||
+        localStorage.getItem("studentflow_api_base_url");
+    if (runtimeOverride && runtimeOverride.trim()) {
+        return runtimeOverride.trim().replace(/\/+$/, "");
     }
 
+    const hostname = window.location.hostname || "";
+    const isGitHubPages = hostname.includes("github.io");
+
+    // 2. On deployed GitHub Pages, ALWAYS use the production API URL (never /api or localhost)
+    if (isGitHubPages) {
+        return PRODUCTION_API_URL;
+    }
+
+    // 3. HTML meta tag configuration
+    const metaTag = document.querySelector('meta[name="api-base-url"]');
+    const metaUrl = metaTag ? metaTag.getAttribute("content") : null;
+    if (metaUrl && metaUrl.trim()) {
+        return metaUrl.trim().replace(/\/+$/, "");
+    }
+
+    // 4. Local dev environment (Live Server, Vite, file://, etc.)
     const isLocalFrontendOnly =
         window.location.protocol === "file:" ||
-        ((window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") &&
+        ((hostname === "localhost" || hostname === "127.0.0.1") &&
          window.location.port !== "" &&
          window.location.port !== "5000");
 
@@ -27,7 +49,14 @@ function getApiBaseUrl() {
         return "http://localhost:5000/api";
     }
 
-    return "/api";
+    // 5. Backend same-origin serving (e.g. Express serving public folder)
+    if (window.location.origin === "https://student-backend-wdxq.onrender.com" ||
+        (hostname === "localhost" && window.location.port === "5000")) {
+        return "/api";
+    }
+
+    // 6. Default to production API
+    return PRODUCTION_API_URL;
 }
 
 const API_BASE_URL = getApiBaseUrl();
