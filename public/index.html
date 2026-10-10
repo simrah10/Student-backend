@@ -173,36 +173,36 @@
                 </div>
             </div>
 
-            <nav>
-                <button class="nav-item active" id="dashboardBtn">
+            <nav id="sidebarNav">
+                <a href="#/dashboard" class="nav-item active" id="dashboardBtn" data-route="dashboard">
                     <span>📊</span>
                     Dashboard
-                </button>
+                </a>
 
-                <button class="nav-item" id="myTasksBtn">
+                <a href="#/tasks" class="nav-item" id="myTasksBtn" data-route="tasks">
                     <span>📝</span>
                     My Tasks
-                </button>
+                </a>
 
-                <button class="nav-item" id="pendingBtn">
+                <a href="#/pending" class="nav-item" id="pendingBtn" data-route="pending">
                     <span>⏳</span>
                     Pending
-                </button>
+                </a>
 
-                <button class="nav-item" id="completedBtn">
+                <a href="#/completed" class="nav-item" id="completedBtn" data-route="completed">
                     <span>✅</span>
                     Completed
-                </button>
+                </a>
 
-                <button class="nav-item" id="overdueBtn">
+                <a href="#/overdue" class="nav-item" id="overdueBtn" data-route="overdue">
                     <span>⚠️</span>
                     Overdue
-                </button>
+                </a>
 
-                <button class="nav-item" id="statisticsBtn">
+                <a href="#/statistics" class="nav-item" id="statisticsBtn" data-route="statistics">
                     <span>📈</span>
                     Statistics
-                </button>
+                </a>
             </nav>
 
             <!-- Authenticated User Sidebar Badge -->
@@ -232,8 +232,8 @@
             <header class="topbar">
 
                 <div>
-                    <h1>Dashboard</h1>
-                    <p>Manage your academic tasks efficiently.</p>
+                    <h1 id="topbarTitle">Dashboard</h1>
+                    <p id="topbarSubtitle">Manage your academic tasks efficiently.</p>
                 </div>
 
                 <div class="topbar-actions">
@@ -253,251 +253,372 @@
 
             </header>
 
-            <!-- Dashboard Cards -->
-            <section class="dashboard">
+            <!-- ================= VIEW 1: DASHBOARD ================= -->
+            <div class="view-page" id="view-dashboard">
 
-                <div class="stat-card">
-                    <div class="stat-icon">📚</div>
+                <!-- Dashboard Cards -->
+                <section class="dashboard">
 
-                    <div>
-                        <p>Total Tasks</p>
-                        <h2 id="totalTasks">0</h2>
-                    </div>
-                </div>
-
-                <div class="stat-card">
-                    <div class="stat-icon">✅</div>
-
-                    <div>
-                        <p>Completed</p>
-                        <h2 id="completedTasks">0</h2>
-                    </div>
-                </div>
-
-                <div class="stat-card">
-                    <div class="stat-icon">⏳</div>
-
-                    <div>
-                        <p>Pending</p>
-                        <h2 id="pendingTasks">0</h2>
-                    </div>
-                </div>
-
-                <div class="stat-card">
-                    <div class="stat-icon">⚠️</div>
-
-                    <div>
-                        <p>Overdue</p>
-                        <h2 id="overdueTasks">0</h2>
-                    </div>
-                </div>
-
-            </section>
-
-            <!-- Progress -->
-            <section class="progress-section">
-
-                <div class="progress-header">
-                    <div>
-                        <h2>Overall Progress</h2>
-                        <p>Track your completed academic tasks.</p>
+                    <div class="stat-card" onclick="navigateTo('tasks')" title="Click to view all tasks">
+                        <div class="stat-icon">📚</div>
+                        <div>
+                            <p>Total Tasks</p>
+                            <h2 id="totalTasks">0</h2>
+                        </div>
                     </div>
 
-                    <strong id="progressText">0%</strong>
-                </div>
-
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progressFill"></div>
-                </div>
-
-            </section>
-
-            <!-- Task Form -->
-            <section class="task-form" id="taskForm">
-
-                <div class="section-heading">
-
-                    <div>
-                        <h2 id="formHeading">Add New Task</h2>
-                        <p>Enter the details of your academic task.</p>
+                    <div class="stat-card" onclick="navigateTo('completed')" title="Click to view completed tasks">
+                        <div class="stat-icon">✅</div>
+                        <div>
+                            <p>Completed</p>
+                            <h2 id="completedTasks">0</h2>
+                        </div>
                     </div>
 
-                </div>
-
-                <div class="form-grid">
-
-                    <div class="input-group">
-                        <label for="taskInput">Task Name</label>
-
-                        <input
-                            type="text"
-                            id="taskInput"
-                            placeholder="e.g. Complete Java assignment"
-                        >
+                    <div class="stat-card" onclick="navigateTo('pending')" title="Click to view pending tasks">
+                        <div class="stat-icon">⏳</div>
+                        <div>
+                            <p>Pending</p>
+                            <h2 id="pendingTasks">0</h2>
+                        </div>
                     </div>
 
-                    <div class="input-group">
-                        <label for="subjectInput">Subject</label>
-
-                        <input
-                            type="text"
-                            id="subjectInput"
-                            placeholder="e.g. Java"
-                        >
+                    <div class="stat-card" onclick="navigateTo('overdue')" title="Click to view overdue tasks">
+                        <div class="stat-icon">⚠️</div>
+                        <div>
+                            <p>Overdue</p>
+                            <h2 id="overdueTasks">0</h2>
+                        </div>
                     </div>
 
-                    <div class="input-group">
-                        <label for="categoryInput">Category</label>
+                </section>
 
-                        <input
-                            type="text"
-                            id="categoryInput"
-                            placeholder="e.g. Assignment"
-                        >
+                <!-- Overall Progress -->
+                <section class="progress-section">
+                    <div class="progress-header">
+                        <div>
+                            <h2>Overall Progress</h2>
+                            <p>Track your completed academic tasks.</p>
+                        </div>
+                        <strong id="progressText">0%</strong>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                </section>
+
+                <!-- Recent Tasks Preview -->
+                <section class="tasks-section" id="dashboardRecentSection">
+                    <div class="tasks-header">
+                        <div>
+                            <h2>Recent Tasks</h2>
+                            <p>Quick overview of your latest academic activities.</p>
+                        </div>
+                        <button class="clear-view-btn" onclick="navigateTo('tasks')">
+                            View All Tasks →
+                        </button>
+                    </div>
+                    <div id="dashboardRecentList"></div>
+                </section>
+
+            </div>
+
+            <!-- ================= VIEW 2: MY TASKS ================= -->
+            <div class="view-page" id="view-tasks" style="display: none;">
+
+                <!-- Task Form -->
+                <section class="task-form" id="taskForm">
+                    <div class="section-heading">
+                        <div>
+                            <h2 id="formHeading">Add New Task</h2>
+                            <p>Enter the details of your academic task.</p>
+                        </div>
                     </div>
 
-                    <div class="input-group">
-                        <label for="priorityInput">Priority</label>
-
-                        <select id="priorityInput">
-                            <option value="1">Low</option>
-                            <option value="2">Medium</option>
-                            <option value="3">High</option>
-                        </select>
-                    </div>
-
-                    <div class="input-group">
-                        <label for="dueDateInput">Due Date</label>
-
-                        <input
-                            type="date"
-                            id="dueDateInput"
-                        >
-                    </div>
-
-                </div>
-
-                <div class="form-buttons">
-
-                    <button class="primary-btn" id="saveTaskBtn" onclick="addTask()">
-                        Add Task
-                    </button>
-
-                    <button class="secondary-btn" onclick="clearForm()">
-                        Clear
-                    </button>
-
-                </div>
-
-            </section>
-
-            <!-- Tasks -->
-            <section class="tasks-section" id="tasksSection">
-
-                <div class="tasks-header">
-
-                    <div>
-                        <h2>My Tasks</h2>
-                        <p>Keep track of your academic activities.</p>
-                    </div>
-
-                    <div class="task-controls">
-
-                        <div class="search-box">
-                            <span>🔍</span>
-                            <input
-                                type="text"
-                                id="searchInput"
-                                placeholder="Search tasks..."
-                                onkeyup="displayTasks()"
-                            >
+                    <div class="form-grid">
+                        <div class="input-group">
+                            <label for="taskInput">Task Name</label>
+                            <input type="text" id="taskInput" placeholder="e.g. Complete Java assignment">
                         </div>
 
-                        <select id="sortSelect" onchange="displayTasks()">
-                            <option value="default">Sort Tasks</option>
-                            <option value="priorityHigh">Priority: High to Low</option>
-                            <option value="priorityLow">Priority: Low to High</option>
-                            <option value="dueSoon">Due Date: Earliest First</option>
-                            <option value="dueLate">Due Date: Latest First</option>
-                        </select>
+                        <div class="input-group">
+                            <label for="subjectInput">Subject</label>
+                            <input type="text" id="subjectInput" placeholder="e.g. Java">
+                        </div>
 
-                        <button class="clear-view-btn" onclick="clearTaskView()">
+                        <div class="input-group">
+                            <label for="categoryInput">Category</label>
+                            <input type="text" id="categoryInput" placeholder="e.g. Assignment">
+                        </div>
+
+                        <div class="input-group">
+                            <label for="priorityInput">Priority</label>
+                            <select id="priorityInput">
+                                <option value="1">Low</option>
+                                <option value="2">Medium</option>
+                                <option value="3">High</option>
+                            </select>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="dueDateInput">Due Date</label>
+                            <input type="date" id="dueDateInput">
+                        </div>
+                    </div>
+
+                    <div class="form-buttons">
+                        <button class="primary-btn" id="saveTaskBtn" onclick="addTask()">
+                            Add Task
+                        </button>
+                        <button class="secondary-btn" onclick="clearForm()">
                             Clear
                         </button>
+                    </div>
+                </section>
 
+                <!-- All Tasks Section -->
+                <section class="tasks-section" id="tasksSection">
+                    <div class="tasks-header">
+                        <div>
+                            <h2>All Tasks</h2>
+                            <p>Search, filter, and organize your tasks.</p>
+                        </div>
+
+                        <div class="task-controls">
+                            <div class="search-box">
+                                <span>🔍</span>
+                                <input type="text" id="searchInput" placeholder="Search tasks..." onkeyup="refreshActiveView('tasks')">
+                            </div>
+
+                            <select id="sortSelect" onchange="refreshActiveView('tasks')">
+                                <option value="default">Sort Tasks</option>
+                                <option value="priorityHigh">Priority: High to Low</option>
+                                <option value="priorityLow">Priority: Low to High</option>
+                                <option value="dueSoon">Due Date: Earliest First</option>
+                                <option value="dueLate">Due Date: Latest First</option>
+                            </select>
+
+                            <button class="clear-view-btn" onclick="clearTaskView('tasks')">
+                                Clear
+                            </button>
+                        </div>
                     </div>
 
-                </div>
+                    <div id="taskList"></div>
+                </section>
 
-                <div id="taskList"></div>
+            </div>
 
-            </section>
+            <!-- ================= VIEW 3: PENDING TASKS ================= -->
+            <div class="view-page" id="view-pending" style="display: none;">
 
-            <!-- Statistics -->
-            <section class="statistics-section" id="statisticsSection">
+                <section class="tasks-section" id="pendingSection">
+                    <div class="tasks-header">
+                        <div>
+                            <h2>Pending Tasks</h2>
+                            <p>Tasks waiting to be completed.</p>
+                        </div>
 
-                <div class="section-heading">
-                    <div>
-                        <h2>Statistics</h2>
-                        <p>View your academic productivity summary.</p>
-                    </div>
-                </div>
+                        <div class="task-controls">
+                            <div class="search-box">
+                                <span>🔍</span>
+                                <input type="text" id="pendingSearchInput" placeholder="Search pending..." onkeyup="refreshActiveView('pending')">
+                            </div>
 
-                <div class="statistics-grid">
+                            <select id="pendingSortSelect" onchange="refreshActiveView('pending')">
+                                <option value="default">Sort Tasks</option>
+                                <option value="priorityHigh">Priority: High to Low</option>
+                                <option value="priorityLow">Priority: Low to High</option>
+                                <option value="dueSoon">Due Date: Earliest First</option>
+                                <option value="dueLate">Due Date: Latest First</option>
+                            </select>
 
-                    <div class="statistics-card">
-                        <p>Total Tasks</p>
-                        <h2 id="statsTotal">0</h2>
-                    </div>
-
-                    <div class="statistics-card">
-                        <p>Completed Tasks</p>
-                        <h2 id="statsCompleted">0</h2>
-                    </div>
-
-                    <div class="statistics-card">
-                        <p>Pending Tasks</p>
-                        <h2 id="statsPending">0</h2>
-                    </div>
-
-                    <div class="statistics-card">
-                        <p>Overdue Tasks</p>
-                        <h2 id="statsOverdue">0</h2>
+                            <button class="clear-view-btn" onclick="clearTaskView('pending')">
+                                Clear
+                            </button>
+                        </div>
                     </div>
 
-                </div>
+                    <div id="pendingTaskList"></div>
+                </section>
 
-            </section>
+            </div>
 
-            <!-- Subject Summary -->
-            <section class="summary-section" id="subjectSummarySection">
+            <!-- ================= VIEW 4: COMPLETED TASKS ================= -->
+            <div class="view-page" id="view-completed" style="display: none;">
 
-                <div class="section-heading">
-                    <div>
-                        <h2>Subject Summary</h2>
-                        <p>View the number of tasks assigned to each subject.</p>
+                <section class="tasks-section" id="completedSection">
+                    <div class="tasks-header">
+                        <div>
+                            <h2>Completed Tasks</h2>
+                            <p>Archive of your completed activities and achievements.</p>
+                        </div>
+
+                        <div class="task-controls">
+                            <div class="search-box">
+                                <span>🔍</span>
+                                <input type="text" id="completedSearchInput" placeholder="Search completed..." onkeyup="refreshActiveView('completed')">
+                            </div>
+
+                            <select id="completedSortSelect" onchange="refreshActiveView('completed')">
+                                <option value="default">Sort Tasks</option>
+                                <option value="priorityHigh">Priority: High to Low</option>
+                                <option value="priorityLow">Priority: Low to High</option>
+                                <option value="dueSoon">Due Date: Earliest First</option>
+                                <option value="dueLate">Due Date: Latest First</option>
+                            </select>
+
+                            <button class="clear-view-btn" onclick="clearTaskView('completed')">
+                                Clear
+                            </button>
+                        </div>
                     </div>
-                </div>
 
-                <div id="subjectSummary"></div>
+                    <div id="completedTaskList"></div>
+                </section>
 
-            </section>
+            </div>
 
-            <!-- Category Summary -->
-            <section class="summary-section" id="categorySummarySection">
+            <!-- ================= VIEW 5: OVERDUE TASKS ================= -->
+            <div class="view-page" id="view-overdue" style="display: none;">
 
-                <div class="section-heading">
-                    <div>
-                        <h2>Category Summary</h2>
-                        <p>View the number of tasks in each category.</p>
+                <section class="tasks-section" id="overdueSection">
+                    <div class="tasks-header">
+                        <div>
+                            <h2>Overdue Tasks</h2>
+                            <p>Tasks past their deadline requiring immediate attention.</p>
+                        </div>
+
+                        <div class="task-controls">
+                            <div class="search-box">
+                                <span>🔍</span>
+                                <input type="text" id="overdueSearchInput" placeholder="Search overdue..." onkeyup="refreshActiveView('overdue')">
+                            </div>
+
+                            <select id="overdueSortSelect" onchange="refreshActiveView('overdue')">
+                                <option value="default">Sort Tasks</option>
+                                <option value="priorityHigh">Priority: High to Low</option>
+                                <option value="priorityLow">Priority: Low to High</option>
+                                <option value="dueSoon">Due Date: Earliest First</option>
+                                <option value="dueLate">Due Date: Latest First</option>
+                            </select>
+
+                            <button class="clear-view-btn" onclick="clearTaskView('overdue')">
+                                Clear
+                            </button>
+                        </div>
                     </div>
-                </div>
 
-                <div id="categorySummary"></div>
+                    <div id="overdueTaskList"></div>
+                </section>
 
-            </section>
+            </div>
+
+            <!-- ================= VIEW 6: STATISTICS ================= -->
+            <div class="view-page" id="view-statistics" style="display: none;">
+
+                <!-- Statistics Overview Grid -->
+                <section class="statistics-section" id="statisticsSection">
+                    <div class="section-heading">
+                        <div>
+                            <h2>Productivity Summary</h2>
+                            <p>Overview of total, completed, pending, and overdue tasks.</p>
+                        </div>
+                    </div>
+
+                    <div class="statistics-grid">
+                        <div class="statistics-card" onclick="navigateTo('tasks')" style="cursor: pointer;" title="View all tasks">
+                            <p>Total Tasks</p>
+                            <h2 id="statsTotal">0</h2>
+                        </div>
+
+                        <div class="statistics-card" onclick="navigateTo('completed')" style="cursor: pointer;" title="View completed tasks">
+                            <p>Completed Tasks</p>
+                            <h2 id="statsCompleted">0</h2>
+                        </div>
+
+                        <div class="statistics-card" onclick="navigateTo('pending')" style="cursor: pointer;" title="View pending tasks">
+                            <p>Pending Tasks</p>
+                            <h2 id="statsPending">0</h2>
+                        </div>
+
+                        <div class="statistics-card" onclick="navigateTo('overdue')" style="cursor: pointer;" title="View overdue tasks">
+                            <p>Overdue Tasks</p>
+                            <h2 id="statsOverdue">0</h2>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Statistics Progress Section -->
+                <section class="progress-section" id="statsProgressSection">
+                    <div class="progress-header">
+                        <div>
+                            <h2>Completion Rate</h2>
+                            <p>Overall percentage of completed assignments.</p>
+                        </div>
+                        <strong id="statsProgressText">0%</strong>
+                    </div>
+
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="statsProgressFill"></div>
+                    </div>
+                </section>
+
+                <!-- Subject Summary -->
+                <section class="summary-section" id="subjectSummarySection">
+                    <div class="section-heading">
+                        <div>
+                            <h2>Subject Summary</h2>
+                            <p>View the number of tasks assigned to each subject.</p>
+                        </div>
+                    </div>
+
+                    <div id="subjectSummary"></div>
+                </section>
+
+                <!-- Category Summary -->
+                <section class="summary-section" id="categorySummarySection">
+                    <div class="section-heading">
+                        <div>
+                            <h2>Category Summary</h2>
+                            <p>View the number of tasks in each category.</p>
+                        </div>
+                    </div>
+
+                    <div id="categorySummary"></div>
+                </section>
+
+            </div>
 
         </main>
+
+        <!-- Mobile Bottom Navigation Bar -->
+        <nav class="mobile-bottom-nav" id="mobileBottomNav">
+            <a href="#/dashboard" class="mobile-nav-item active" data-route="dashboard">
+                <span>📊</span>
+                Dashboard
+            </a>
+            <a href="#/tasks" class="mobile-nav-item" data-route="tasks">
+                <span>📝</span>
+                Tasks
+            </a>
+            <a href="#/pending" class="mobile-nav-item" data-route="pending">
+                <span>⏳</span>
+                Pending
+            </a>
+            <a href="#/completed" class="mobile-nav-item" data-route="completed">
+                <span>✅</span>
+                Done
+            </a>
+            <a href="#/overdue" class="mobile-nav-item" data-route="overdue">
+                <span>⚠️</span>
+                Overdue
+            </a>
+            <a href="#/statistics" class="mobile-nav-item" data-route="statistics">
+                <span>📈</span>
+                Stats
+            </a>
+        </nav>
 
     </div>
 

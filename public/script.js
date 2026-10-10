@@ -67,6 +67,11 @@ let currentUser = null;
 let currentAuthMode = "login"; // "login" | "signup" | "forgot" | "reset"
 let editingTaskId = null;
 
+// Routing State
+const VALID_ROUTES = ["dashboard", "tasks", "pending", "completed", "overdue", "statistics"];
+const DEFAULT_ROUTE = "dashboard";
+let currentRoute = "dashboard";
+
 // ============================================================
 // INITIALIZATION & SESSION RESTORATION
 // ============================================================
@@ -487,7 +492,8 @@ function showDashboardScreen() {
     document.getElementById("authScreen").style.display = "none";
     document.getElementById("mainApp").style.display = "flex";
     updateUserProfileUI();
-    setActiveButton("dashboardBtn");
+    const route = getRouteFromLocation();
+    navigateTo(route, false);
 }
 
 function togglePasswordVisibility(inputId, toggleBtn) {
@@ -594,7 +600,7 @@ async function loadUserTasks() {
     }
 
     saveTasksLocal();
-    displayTasks();
+    refreshActiveView(currentRoute);
 }
 
 /**
@@ -679,7 +685,7 @@ async function addTask() {
 
     saveTasksLocal();
     clearForm();
-    displayTasks();
+    refreshActiveView(currentRoute);
 }
 
 /**
@@ -691,7 +697,7 @@ async function completeTask(id) {
 
     task.completed = !task.completed;
     saveTasksLocal();
-    displayTasks();
+    refreshActiveView(currentRoute);
 
     try {
         await fetch(`${API_BASE_URL}/tasks/${id}/complete`, {
@@ -709,6 +715,8 @@ async function completeTask(id) {
 function editTask(id) {
     const task = tasks.find(t => t.id === id || t._id === id);
     if (!task) return;
+
+    navigateTo("tasks");
 
     document.getElementById("taskInput").value = task.name;
     document.getElementById("subjectInput").value = task.subject;
@@ -732,7 +740,7 @@ async function deleteTask(id) {
 
     tasks = tasks.filter(t => t.id !== id && t._id !== id);
     saveTasksLocal();
-    displayTasks();
+    refreshActiveView(currentRoute);
 
     try {
         await fetch(`${API_BASE_URL}/tasks/${id}`, {
@@ -745,94 +753,44 @@ async function deleteTask(id) {
 }
 
 /**
- * Display Tasks with search, filtering, and sorting
+ * Date calculation helper for task cards
  */
-function displayTasks(filter = "all") {
-    const taskList = document.getElementById("taskList");
-    const searchText = (document.getElementById("searchInput")?.value || "").toLowerCase();
-    const sortOption = document.getElementById("sortSelect")?.value || "default";
+function getDueDateText(dueDate) {
+    if (!dueDate) return "No date";
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
 
-    taskList.innerHTML = "";
-    const today = new Date().toISOString().split("T")[0];
+    const taskDate = new Date(dueDate);
+    taskDate.setHours(0, 0, 0, 0);
 
-    function getDueDateText(dueDate) {
-        const todayDate = new Date();
-        todayDate.setHours(0, 0, 0, 0);
+    const difference = Math.round((taskDate - todayDate) / (1000 * 60 * 60 * 24));
 
-        const taskDate = new Date(dueDate);
-        taskDate.setHours(0, 0, 0, 0);
+    if (difference === 0) return "Today";
+    if (difference === 1) return "Tomorrow";
+    if (difference === -1) return "Yesterday";
+    return dueDate;
+}
 
-        const difference = Math.round((taskDate - todayDate) / (1000 * 60 * 60 * 24));
+/**
+ * Render markup for an individual task card
+ */
+function renderTaskCard(task, today) {
+    let priorityText = "Low";
+    if (task.priority === "2") priorityText = "Medium";
+    if (task.priority === "3") priorityText = "High";
 
-        if (difference === 0) return "Today";
-        if (difference === 1) return "Tomorrow";
-        if (difference === -1) return "Yesterday";
-        return dueDate;
+    let statusText = "Pending";
+    if (task.completed) {
+        statusText = "Completed";
+    } else if (task.dueDate < today) {
+        statusText = "Overdue";
     }
 
-    let filteredTasks = tasks.filter(task =>
-        task.name.toLowerCase().includes(searchText)
-    );
+    const taskId = task.id || task._id;
+    const safeTaskId = typeof taskId === 'number' ? taskId : `'${taskId}'`;
 
-    if (filter === "pending") {
-        filteredTasks = filteredTasks.filter(task => !task.completed);
-    } else if (filter === "completed") {
-        filteredTasks = filteredTasks.filter(task => task.completed);
-    } else if (filter === "overdue") {
-        filteredTasks = filteredTasks.filter(task => !task.completed && task.dueDate < today);
-    }
-
-    if (sortOption === "priorityHigh") {
-        filteredTasks.sort((a, b) => b.priority - a.priority);
-    } else if (sortOption === "priorityLow") {
-        filteredTasks.sort((a, b) => a.priority - b.priority);
-    } else if (sortOption === "dueSoon") {
-        filteredTasks.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-    } else if (sortOption === "dueLate") {
-        filteredTasks.sort((a, b) => b.dueDate.localeCompare(a.dueDate));
-    }
-
-    if (filteredTasks.length === 0) {
-        let message = "No tasks found.";
-        if (filter === "pending") message = "No pending tasks.";
-        if (filter === "completed") message = "No completed tasks.";
-        if (filter === "overdue") message = "No overdue tasks.";
-        if (searchText !== "") message = "No tasks found matching your search.";
-
-        taskList.innerHTML = `
-            <div class="empty-state">
-                <div class="empty-icon">📝</div>
-                <h3>${message}</h3>
-                <p>Your tasks will appear here.</p>
-            </div>
-        `;
-
-        updateDashboard();
-        updateStatistics();
-        updateSubjectSummary();
-        updateCategorySummary();
-        return;
-    }
-
-    filteredTasks.forEach(task => {
-        const taskDiv = document.createElement("div");
-        taskDiv.className = "task";
-        if (task.completed) taskDiv.classList.add("completed");
-
-        let priorityText = "Low";
-        if (task.priority === "2") priorityText = "Medium";
-        if (task.priority === "3") priorityText = "High";
-
-        let statusText = "Pending";
-        if (task.completed) {
-            statusText = "Completed";
-        } else if (task.dueDate < today) {
-            statusText = "Overdue";
-        }
-
-        const taskId = task.id || task._id;
-
-        taskDiv.innerHTML = `
+    return `
+        <div class="task ${task.completed ? "completed" : ""}">
             <h3>${escapeHtml(task.name)}</h3>
             <p><strong>Subject:</strong> ${escapeHtml(task.subject)}</p>
             <p><strong>Category:</strong> ${escapeHtml(task.category || "General")}</p>
@@ -843,27 +801,107 @@ function displayTasks(filter = "all") {
             <p><strong>Due Date:</strong> ${getDueDateText(task.dueDate)}</p>
             <p><strong>Status:</strong> ${statusText}</p>
             <div class="task-buttons">
-                <button onclick="completeTask(${typeof taskId === 'number' ? taskId : `'${taskId}'`})">
+                <button onclick="completeTask(${safeTaskId})">
                     ${task.completed ? "Mark Pending" : "Complete"}
                 </button>
-                <button onclick="editTask(${typeof taskId === 'number' ? taskId : `'${taskId}'`})">
+                <button onclick="editTask(${safeTaskId})">
                     Edit
                 </button>
-                <button onclick="deleteTask(${typeof taskId === 'number' ? taskId : `'${taskId}'`})">
+                <button onclick="deleteTask(${safeTaskId})">
                     Delete
                 </button>
             </div>
-        `;
-
-        taskList.appendChild(taskDiv);
-    });
-
-    updateDashboard();
-    updateStatistics();
-    updateSubjectSummary();
-    updateCategorySummary();
+        </div>
+    `;
 }
 
+/**
+ * Render filtered & sorted task list into a target container
+ */
+function renderTaskList(filter, searchInputId, sortSelectId, containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const searchInput = document.getElementById(searchInputId);
+    const sortSelect = document.getElementById(sortSelectId);
+    const searchText = (searchInput?.value || "").toLowerCase().trim();
+    const sortOption = sortSelect?.value || "default";
+
+    const today = new Date().toISOString().split("T")[0];
+
+    let list = tasks.filter(t => t.name.toLowerCase().includes(searchText));
+
+    if (filter === "pending") {
+        list = list.filter(t => !t.completed);
+    } else if (filter === "completed") {
+        list = list.filter(t => t.completed);
+    } else if (filter === "overdue") {
+        list = list.filter(t => !t.completed && t.dueDate < today);
+    }
+
+    if (sortOption === "priorityHigh") {
+        list.sort((a, b) => b.priority - a.priority);
+    } else if (sortOption === "priorityLow") {
+        list.sort((a, b) => a.priority - b.priority);
+    } else if (sortOption === "dueSoon") {
+        list.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+    } else if (sortOption === "dueLate") {
+        list.sort((a, b) => b.dueDate.localeCompare(a.dueDate));
+    }
+
+    if (list.length === 0) {
+        let msg = "No tasks found.";
+        if (filter === "pending") msg = "No pending tasks.";
+        if (filter === "completed") msg = "No completed tasks.";
+        if (filter === "overdue") msg = "No overdue tasks.";
+        if (searchText !== "") msg = "No tasks match your search.";
+
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-icon">📝</div>
+                <h3>${msg}</h3>
+                <p>Tasks will appear here.</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = list.map(t => renderTaskCard(t, today)).join("");
+}
+
+/**
+ * Render recent tasks preview for Dashboard view
+ */
+function renderDashboardRecentTasks() {
+    const container = document.getElementById("dashboardRecentList");
+    if (!container) return;
+
+    const today = new Date().toISOString().split("T")[0];
+
+    const urgentOrRecent = [...tasks]
+        .sort((a, b) => {
+            if (a.completed !== b.completed) return a.completed ? 1 : -1;
+            return a.dueDate.localeCompare(b.dueDate);
+        })
+        .slice(0, 4);
+
+    if (urgentOrRecent.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-icon">🎓</div>
+                <h3>No tasks yet</h3>
+                <p>Click "+ Add Task" to start organizing your academic workflow.</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = urgentOrRecent.map(t => renderTaskCard(t, today)).join("");
+}
+
+/**
+ * Update Dashboard summary cards and progress
+ */
 function updateDashboard() {
     const total = tasks.length;
     const completed = tasks.filter(t => t.completed).length;
@@ -871,20 +909,30 @@ function updateDashboard() {
     const today = new Date().toISOString().split("T")[0];
     const overdue = tasks.filter(t => !t.completed && t.dueDate < today).length;
 
-    document.getElementById("totalTasks").textContent = total;
-    document.getElementById("completedTasks").textContent = completed;
-    document.getElementById("pendingTasks").textContent = pending;
-    document.getElementById("overdueTasks").textContent = overdue;
+    const totalEl = document.getElementById("totalTasks");
+    const completedEl = document.getElementById("completedTasks");
+    const pendingEl = document.getElementById("pendingTasks");
+    const overdueEl = document.getElementById("overdueTasks");
+
+    if (totalEl) totalEl.textContent = total;
+    if (completedEl) completedEl.textContent = completed;
+    if (pendingEl) pendingEl.textContent = pending;
+    if (overdueEl) overdueEl.textContent = overdue;
 
     let progress = 0;
     if (total > 0) {
         progress = Math.round((completed / total) * 100);
     }
 
-    document.getElementById("progressText").textContent = progress + "%";
-    document.getElementById("progressFill").style.width = progress + "%";
+    const progressText = document.getElementById("progressText");
+    const progressFill = document.getElementById("progressFill");
+    if (progressText) progressText.textContent = progress + "%";
+    if (progressFill) progressFill.style.width = progress + "%";
 }
 
+/**
+ * Update Statistics view figures and progress
+ */
 function updateStatistics() {
     const total = tasks.length;
     const completed = tasks.filter(t => t.completed).length;
@@ -892,14 +940,34 @@ function updateStatistics() {
     const today = new Date().toISOString().split("T")[0];
     const overdue = tasks.filter(t => !t.completed && t.dueDate < today).length;
 
-    document.getElementById("statsTotal").textContent = total;
-    document.getElementById("statsCompleted").textContent = completed;
-    document.getElementById("statsPending").textContent = pending;
-    document.getElementById("statsOverdue").textContent = overdue;
+    const statsTotal = document.getElementById("statsTotal");
+    const statsCompleted = document.getElementById("statsCompleted");
+    const statsPending = document.getElementById("statsPending");
+    const statsOverdue = document.getElementById("statsOverdue");
+
+    if (statsTotal) statsTotal.textContent = total;
+    if (statsCompleted) statsCompleted.textContent = completed;
+    if (statsPending) statsPending.textContent = pending;
+    if (statsOverdue) statsOverdue.textContent = overdue;
+
+    let progress = 0;
+    if (total > 0) {
+        progress = Math.round((completed / total) * 100);
+    }
+
+    const statsProgressText = document.getElementById("statsProgressText");
+    const statsProgressFill = document.getElementById("statsProgressFill");
+    if (statsProgressText) statsProgressText.textContent = progress + "%";
+    if (statsProgressFill) statsProgressFill.style.width = progress + "%";
 }
 
+/**
+ * Update Subject summary breakdown
+ */
 function updateSubjectSummary() {
     const subjectSummary = document.getElementById("subjectSummary");
+    if (!subjectSummary) return;
+
     subjectSummary.innerHTML = "";
     const subjects = {};
 
@@ -930,8 +998,13 @@ function updateSubjectSummary() {
     }
 }
 
+/**
+ * Update Category summary breakdown
+ */
 function updateCategorySummary() {
     const categorySummary = document.getElementById("categorySummary");
+    if (!categorySummary) return;
+
     categorySummary.innerHTML = "";
     const categories = {};
 
@@ -962,12 +1035,157 @@ function updateCategorySummary() {
     }
 }
 
-// Helpers
-function openTaskForm() {
-    document.getElementById("taskForm").scrollIntoView({ behavior: "smooth" });
-    document.getElementById("taskInput").focus();
+/**
+ * Backward compatibility alias for displayTasks
+ */
+function displayTasks(filter = "all") {
+    refreshActiveView(currentRoute);
 }
 
+/**
+ * Refresh current active view contents and statistics
+ */
+function refreshActiveView(route = currentRoute) {
+    updateDashboard();
+    updateStatistics();
+    updateSubjectSummary();
+    updateCategorySummary();
+
+    if (route === "dashboard") {
+        renderDashboardRecentTasks();
+    } else if (route === "tasks") {
+        renderTaskList("all", "searchInput", "sortSelect", "taskList");
+    } else if (route === "pending") {
+        renderTaskList("pending", "pendingSearchInput", "pendingSortSelect", "pendingTaskList");
+    } else if (route === "completed") {
+        renderTaskList("completed", "completedSearchInput", "completedSortSelect", "completedTaskList");
+    } else if (route === "overdue") {
+        renderTaskList("overdue", "overdueSearchInput", "overdueSortSelect", "overdueTaskList");
+    }
+}
+
+/**
+ * Parse current route from URL hash
+ */
+function getRouteFromLocation() {
+    const hash = window.location.hash || "";
+    const clean = hash.replace(/^#\/?/, "").toLowerCase().split("?")[0].trim();
+    if (VALID_ROUTES.includes(clean)) {
+        return clean;
+    }
+    return DEFAULT_ROUTE;
+}
+
+/**
+ * Dedicated Page/View Navigator
+ * Opens corresponding page at top and manages history
+ */
+function navigateTo(route, updateHistory = true) {
+    if (!VALID_ROUTES.includes(route)) {
+        route = DEFAULT_ROUTE;
+    }
+
+    currentRoute = route;
+
+    if (updateHistory) {
+        if (window.location.hash !== "#/" + route) {
+            window.location.hash = "#/" + route;
+        }
+    }
+
+    // Ensure corresponding page opens at the top (not scrolling to section below)
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+
+    // Highlight active link across desktop sidebar and mobile navigation
+    setActiveButton(route);
+
+    // Hide all view pages and show only the selected view page
+    document.querySelectorAll(".view-page").forEach(page => {
+        page.style.display = "none";
+    });
+
+    const activeView = document.getElementById(`view-${route}`);
+    if (activeView) {
+        activeView.style.display = "block";
+    }
+
+    // Update Topbar heading and subtitle
+    updateTopbarForRoute(route);
+
+    // Refresh view data
+    refreshActiveView(route);
+}
+
+/**
+ * Update topbar title and subtitle for current view
+ */
+function updateTopbarForRoute(route) {
+    const titleEl = document.getElementById("topbarTitle");
+    const subtitleEl = document.getElementById("topbarSubtitle");
+    if (!titleEl || !subtitleEl) return;
+
+    switch (route) {
+        case "dashboard":
+            titleEl.textContent = "Dashboard";
+            subtitleEl.textContent = "Manage your academic tasks efficiently.";
+            break;
+        case "tasks":
+            titleEl.textContent = "My Tasks";
+            subtitleEl.textContent = "Manage and organize all your academic activities.";
+            break;
+        case "pending":
+            titleEl.textContent = "Pending Tasks";
+            subtitleEl.textContent = "Tasks and assignments waiting to be completed.";
+            break;
+        case "completed":
+            titleEl.textContent = "Completed Tasks";
+            subtitleEl.textContent = "Archive of your completed activities and achievements.";
+            break;
+        case "overdue":
+            titleEl.textContent = "Overdue Tasks";
+            subtitleEl.textContent = "Tasks that have passed their deadline.";
+            break;
+        case "statistics":
+            titleEl.textContent = "Statistics";
+            subtitleEl.textContent = "View your academic productivity summary.";
+            break;
+        default:
+            titleEl.textContent = "Dashboard";
+            subtitleEl.textContent = "Manage your academic tasks efficiently.";
+    }
+}
+
+/**
+ * Handle browser routing on popstate / hashchange
+ */
+function handleRouting() {
+    if (!currentUser && !localStorage.getItem("studentflow_token")) {
+        return;
+    }
+
+    const route = getRouteFromLocation();
+    navigateTo(route, false);
+}
+
+window.addEventListener("hashchange", handleRouting);
+window.addEventListener("popstate", handleRouting);
+
+/**
+ * Open Task Form in My Tasks view
+ */
+function openTaskForm() {
+    if (currentRoute !== "tasks") {
+        navigateTo("tasks");
+    }
+    const form = document.getElementById("taskForm");
+    if (form) form.scrollIntoView({ behavior: "smooth" });
+    const input = document.getElementById("taskInput");
+    if (input) input.focus();
+}
+
+/**
+ * Clear Task Creation Form
+ */
 function clearForm() {
     document.getElementById("taskInput").value = "";
     document.getElementById("subjectInput").value = "";
@@ -979,19 +1197,80 @@ function clearForm() {
     document.getElementById("saveTaskBtn").textContent = "Add Task";
 }
 
-function clearTaskView() {
-    document.getElementById("searchInput").value = "";
-    document.getElementById("sortSelect").value = "default";
-    displayTasks("all");
-    setActiveButton("myTasksBtn");
+/**
+ * Clear search & sort controls for specific view
+ */
+function clearTaskView(viewName = currentRoute) {
+    if (viewName === "tasks") {
+        const s = document.getElementById("searchInput");
+        const o = document.getElementById("sortSelect");
+        if (s) s.value = "";
+        if (o) o.value = "default";
+        renderTaskList("all", "searchInput", "sortSelect", "taskList");
+    } else if (viewName === "pending") {
+        const s = document.getElementById("pendingSearchInput");
+        const o = document.getElementById("pendingSortSelect");
+        if (s) s.value = "";
+        if (o) o.value = "default";
+        renderTaskList("pending", "pendingSearchInput", "pendingSortSelect", "pendingTaskList");
+    } else if (viewName === "completed") {
+        const s = document.getElementById("completedSearchInput");
+        const o = document.getElementById("completedSortSelect");
+        if (s) s.value = "";
+        if (o) o.value = "default";
+        renderTaskList("completed", "completedSearchInput", "completedSortSelect", "completedTaskList");
+    } else if (viewName === "overdue") {
+        const s = document.getElementById("overdueSearchInput");
+        const o = document.getElementById("overdueSortSelect");
+        if (s) s.value = "";
+        if (o) o.value = "default";
+        renderTaskList("overdue", "overdueSearchInput", "overdueSortSelect", "overdueTaskList");
+    }
 }
 
-function setActiveButton(buttonId) {
-    document.querySelectorAll(".nav-item").forEach(btn => btn.classList.remove("active"));
-    const selected = document.getElementById(buttonId);
-    if (selected) selected.classList.add("active");
+/**
+ * Set active navigation item highlight
+ */
+function setActiveButton(route) {
+    // Desktop sidebar
+    document.querySelectorAll(".nav-item").forEach(btn => {
+        const btnRoute = btn.dataset.route || btn.getAttribute("href")?.replace(/^#\/?/, "") || (btn.id === "myTasksBtn" ? "tasks" : btn.id.replace("Btn", ""));
+        if (btnRoute === route) {
+            btn.classList.add("active");
+        } else {
+            btn.classList.remove("active");
+        }
+    });
+
+    // Mobile bottom bar
+    document.querySelectorAll(".mobile-nav-item").forEach(btn => {
+        const btnRoute = btn.dataset.route || btn.getAttribute("href")?.replace(/^#\/?/, "");
+        if (btnRoute === route) {
+            btn.classList.add("active");
+        } else {
+            btn.classList.remove("active");
+        }
+    });
 }
 
+/**
+ * Setup navigation click listeners for sidebar & mobile nav
+ */
+function setupNavigationListeners() {
+    document.querySelectorAll(".nav-item, .mobile-nav-item").forEach(item => {
+        item.addEventListener("click", (e) => {
+            const route = item.dataset.route || item.getAttribute("href")?.replace(/^#\/?/, "");
+            if (route && VALID_ROUTES.includes(route)) {
+                e.preventDefault();
+                navigateTo(route, true);
+            }
+        });
+    });
+}
+
+/**
+ * HTML Escaping utility for secure DOM injection
+ */
 function escapeHtml(text) {
     if (!text) return "";
     return String(text)
@@ -1000,43 +1279,4 @@ function escapeHtml(text) {
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
-}
-
-// Navigation event bindings
-function setupNavigationListeners() {
-    document.getElementById("dashboardBtn").addEventListener("click", () => {
-        setActiveButton("dashboardBtn");
-        window.scrollTo({ top: 0, behavior: "smooth" });
-        displayTasks("all");
-    });
-
-    document.getElementById("myTasksBtn").addEventListener("click", () => {
-        setActiveButton("myTasksBtn");
-        displayTasks("all");
-        document.getElementById("tasksSection").scrollIntoView({ behavior: "smooth" });
-    });
-
-    document.getElementById("pendingBtn").addEventListener("click", () => {
-        setActiveButton("pendingBtn");
-        displayTasks("pending");
-        document.getElementById("tasksSection").scrollIntoView({ behavior: "smooth" });
-    });
-
-    document.getElementById("completedBtn").addEventListener("click", () => {
-        setActiveButton("completedBtn");
-        displayTasks("completed");
-        document.getElementById("tasksSection").scrollIntoView({ behavior: "smooth" });
-    });
-
-    document.getElementById("overdueBtn").addEventListener("click", () => {
-        setActiveButton("overdueBtn");
-        displayTasks("overdue");
-        document.getElementById("tasksSection").scrollIntoView({ behavior: "smooth" });
-    });
-
-    document.getElementById("statisticsBtn").addEventListener("click", () => {
-        setActiveButton("statisticsBtn");
-        updateStatistics();
-        document.getElementById("statisticsSection").scrollIntoView({ behavior: "smooth" });
-    });
 }
