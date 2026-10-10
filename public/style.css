@@ -1085,20 +1085,37 @@ nav {
         display: flex;
         flex-wrap: wrap;
         gap: 10px;
+        align-items: center;
     }
 
     .search-box {
         flex: 1 1 200px;
         min-width: 160px;
+        height: 44px;
+        min-height: 44px;
+        box-sizing: border-box;
+    }
+
+    .search-box input {
+        height: 100%;
     }
 
     .task-controls select {
         flex: 1 1 160px;
         min-width: 140px;
+        height: 44px;
+        min-height: 44px;
+        box-sizing: border-box;
     }
 
     .clear-view-btn {
         flex: 0 0 auto;
+        height: 44px;
+        min-height: 44px;
+        box-sizing: border-box;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
     }
 }
 
@@ -1127,32 +1144,51 @@ nav {
     }
 
     .topbar-title-group {
-        gap: 10px;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        min-width: 0;
+        width: 100%;
+    }
+
+    .topbar-title-group > div {
+        min-width: 0;
+        flex: 1 1 auto;
     }
 
     .topbar h1 {
         font-size: 22px;
         margin-bottom: 2px;
+        word-break: break-word;
+        overflow-wrap: break-word;
     }
 
     .topbar p {
         font-size: 13px;
         line-height: 1.35;
+        word-break: break-word;
+        overflow-wrap: break-word;
     }
 
     .topbar-actions {
         display: flex;
         align-items: center;
-        justify-content: space-between;
+        justify-content: flex-start;
         flex-wrap: wrap;
         gap: 8px;
         width: 100%;
     }
 
     .topbar-user-badge {
-        padding: 5px 10px;
+        padding: 4px 10px;
         font-size: 12px;
         max-width: 150px;
+        height: 36px;
+        min-height: 36px;
+        box-sizing: border-box;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
         flex: 0 1 auto;
     }
 
@@ -1166,15 +1202,30 @@ nav {
     }
 
     .logout-btn-top {
-        padding: 8px 12px;
+        padding: 0 12px;
         font-size: 12px;
-        min-height: 38px;
+        height: 36px;
+        min-height: 36px;
+        box-sizing: border-box;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        flex: 0 0 auto;
     }
 
     .add-main-btn {
-        padding: 9px 15px;
+        padding: 0 14px;
         font-size: 13px;
-        min-height: 38px;
+        height: 36px;
+        min-height: 36px;
+        box-sizing: border-box;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        white-space: nowrap;
+        margin-left: auto;
+        flex: 0 0 auto;
     }
 
     /* Dashboard & Statistics Cards (Neat 2-Column Mobile Grid) */
@@ -1246,23 +1297,117 @@ nav {
         justify-content: center;
     }
 
-    /* Controls */
-    .search-box,
-    .task-controls,
-    .task-controls select,
-    .clear-view-btn {
-        width: 100%;
+    /* Controls (Search, Sort, Clear) */
+    .tasks-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+        margin-bottom: 16px;
     }
 
     .task-controls {
-        flex-direction: column;
-        align-items: stretch;
+        display: grid;
+        grid-template-columns: 1fr auto;
         gap: 8px;
+        width: 100%;
+        align-items: center;
     }
 
-    .task-controls select,
-    .clear-view-btn {
-        min-height: 42px;
+    .search-box {
+        grid-column: 1 / -1;
+        width: 100%;
+        height: 48px;
+        min-height: 48px;
+        max-height: 48px;
+        flex: none;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        padding: 0 14px;
+        border: 1px solid #dce1e8;
+        border-radius: 8px;
+        background: #ffffff;
+    }
+
+    .search-box span {
+        color: #7a8392;
+        font-size: 16px;
+        margin-right: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+        flex-shrink: 0;
+    }
+
+    .search-box input {
+        flex: 1;
+        width: 100%;
+        height: 100%;
+        border: none;
+        outline: none;
+        padding: 0;
+        margin: 0;
+        font-size: 15px;
+        background: transparent;
+        line-height: normal;
+    }
+
+    .task-controls select {
+        grid-column: 1;
+        width: 100%;
+        height: 48px;
+        min-height: 48px;
+        max-height: 48px;
+        flex: none;
+        box-sizing: border-box;
+        padding: 0 36px 0 12px;
+        border: 1px solid #dce1e8;
+        border-radius: 8px;
+        background-color: #ffffff;
+        font-size: 14px;
+        line-height: normal;
+        appearance: none;
+        -webkit-appearance: none;
+        background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23697386' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        background-size: 15px;
+        cursor: pointer;
+    }
+
+    .task-controls .clear-view-btn {
+        grid-column: 2;
+        width: auto;
+        height: 48px;
+        min-height: 48px;
+        max-height: 48px;
+        flex: none;
+        box-sizing: border-box;
+        padding: 0 16px;
+        border: 1px solid #dce1e8;
+        border-radius: 8px;
+        background: #ffffff;
+        color: #18202f;
+        font-size: 13px;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        white-space: nowrap;
+        cursor: pointer;
+    }
+
+    .tasks-header > .clear-view-btn {
+        align-self: flex-start;
+        height: 40px;
+        min-height: 40px;
+        padding: 0 14px;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
     }
 
     /* Sections */
@@ -1274,6 +1419,8 @@ nav {
         padding: 16px;
         border-radius: 10px;
         margin-bottom: 18px;
+        height: auto;
+        min-height: 0;
     }
 
     .section-heading h2,
@@ -1285,6 +1432,8 @@ nav {
     .task {
         padding: 16px;
         border-radius: 9px;
+        height: auto;
+        min-height: 0;
     }
 
     .task h3 {
@@ -1292,10 +1441,17 @@ nav {
         margin-bottom: 10px;
     }
 
+    .task-buttons {
+        margin-top: 14px;
+        padding-top: 12px;
+        gap: 8px;
+    }
+
     .task-buttons button {
-        min-height: 38px;
-        padding: 8px 12px;
+        min-height: 36px;
+        padding: 6px 12px;
         font-size: 12px;
+        flex: 0 1 auto;
     }
 }
 
@@ -1329,6 +1485,31 @@ nav {
     .auth-tab {
         padding: 9px 8px;
         font-size: 12px;
+    }
+}
+
+/* Narrow Phones (<= 380px, e.g. iPhone SE) */
+@media (max-width: 380px) {
+    .topbar-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .topbar-user-badge {
+        flex: 1 1 auto;
+        max-width: calc(100% - 95px);
+    }
+
+    .logout-btn-top {
+        flex: 0 0 auto;
+    }
+
+    .add-main-btn {
+        width: 100%;
+        flex: 1 1 100%;
+        margin-left: 0;
+        text-align: center;
     }
 }
 
