@@ -298,17 +298,281 @@ const resetPassword = async (req, res, next) => {
   }
 };
 
+/**
+ * Format user profile object for API responses (safely omitting sensitive fields)
+ */
+const formatUserProfile = (user) => {
+  return {
+    id: user._id,
+    _id: user._id,
+    name: user.name || "",
+    email: user.email || "",
+    avatar: user.avatar || "",
+    gender: user.gender || "",
+    dateOfBirth: user.dateOfBirth || "",
+    phone: user.phone || "",
+    institution: user.institution || "",
+    degree: user.degree || "",
+    department: user.department || "",
+    yearOfStudy: user.yearOfStudy || "",
+    semester: user.semester || "",
+    studentId: user.studentId || "",
+    graduationYear: user.graduationYear || "",
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt
+  };
+};
+
+// @desc    Get authenticated user profile
+// @route   GET /api/auth/profile
+// @access  Private
+const getProfile = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User profile not found"
+      });
+    }
+
+    const profileData = formatUserProfile(user);
+    return res.status(200).json({
+      success: true,
+      user: profileData,
+      profile: profileData,
+      data: profileData
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update authenticated user profile
+// @route   PUT /api/auth/profile
+// @access  Private
+const updateProfile = async (req, res, next) => {
+  try {
+    // 1. Identity source: Strictly use req.user._id from JWT, NEVER trust req.body.id or req.body._id
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User profile not found"
+      });
+    }
+
+    // 2. Email immutability: Email cannot be updated via profile endpoint
+    if (req.body.email !== undefined) {
+      const submittedEmail = String(req.body.email).toLowerCase().trim();
+      if (submittedEmail !== user.email.toLowerCase().trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "Email address cannot be changed through profile update"
+        });
+      }
+    }
+
+    // 3. Name validation
+    if (req.body.name !== undefined) {
+      const name = String(req.body.name).trim();
+      if (!name) {
+        return res.status(400).json({
+          success: false,
+          message: "Full name cannot be empty"
+        });
+      }
+      if (name.length > 100) {
+        return res.status(400).json({
+          success: false,
+          message: "Full name cannot exceed 100 characters"
+        });
+      }
+      user.name = name;
+    }
+
+    // 4. Avatar validation (JPEG/PNG/WebP data URL or empty string for removal, max ~500 KB base64 string)
+    if (req.body.avatar !== undefined && req.body.avatar !== null) {
+      if (typeof req.body.avatar !== "string") {
+        return res.status(400).json({
+          success: false,
+          message: "Avatar must be a valid image data string"
+        });
+      }
+      const avatarStr = req.body.avatar.trim();
+      if (avatarStr === "") {
+        // Avatar removal
+        user.avatar = "";
+      } else {
+        // Enforce safe size limit (~500 KB)
+        if (avatarStr.length > 500 * 1024) {
+          return res.status(400).json({
+            success: false,
+            message: "Avatar image exceeds the allowed size limit (maximum 500 KB)"
+          });
+        }
+
+        // Validate image data URL prefix & base64 encoding
+        const isDataUrl = /^data:image\/(jpeg|jpg|png|webp);base64,/i.test(avatarStr);
+        const base64Data = avatarStr.replace(/^data:image\/(jpeg|jpg|png|webp);base64,/i, "").replace(/\s+/g, "");
+        const isBase64 = /^[A-Za-z0-9+/=]+$/.test(base64Data);
+
+        if (!isDataUrl || !isBase64) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid avatar format. Avatar must be a valid JPEG, PNG, or WebP image data URL"
+          });
+        }
+
+        user.avatar = avatarStr;
+      }
+    }
+
+    // 5. Gender validation
+    if (req.body.gender !== undefined) {
+      const gender = String(req.body.gender).trim();
+      const allowedGenders = ["Male", "Female", "Prefer not to say", "Other", ""];
+      if (!allowedGenders.includes(gender)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid gender value. Allowed values are 'Male', 'Female', 'Prefer not to say', 'Other', or empty"
+        });
+      }
+      user.gender = gender;
+    }
+
+    // 6. Phone validation (max 25)
+    if (req.body.phone !== undefined) {
+      const phone = String(req.body.phone).trim();
+      if (phone.length > 25) {
+        return res.status(400).json({
+          success: false,
+          message: "Phone number cannot exceed 25 characters"
+        });
+      }
+      user.phone = phone;
+    }
+
+    // 7. Institution validation (max 150)
+    if (req.body.institution !== undefined) {
+      const institution = String(req.body.institution).trim();
+      if (institution.length > 150) {
+        return res.status(400).json({
+          success: false,
+          message: "Institution cannot exceed 150 characters"
+        });
+      }
+      user.institution = institution;
+    }
+
+    // 8. Degree validation (max 100)
+    if (req.body.degree !== undefined) {
+      const degree = String(req.body.degree).trim();
+      if (degree.length > 100) {
+        return res.status(400).json({
+          success: false,
+          message: "Degree cannot exceed 100 characters"
+        });
+      }
+      user.degree = degree;
+    }
+
+    // 9. Department validation (max 100)
+    if (req.body.department !== undefined) {
+      const department = String(req.body.department).trim();
+      if (department.length > 100) {
+        return res.status(400).json({
+          success: false,
+          message: "Department cannot exceed 100 characters"
+        });
+      }
+      user.department = department;
+    }
+
+    // 10. Student ID validation (max 50)
+    if (req.body.studentId !== undefined) {
+      const studentId = String(req.body.studentId).trim();
+      if (studentId.length > 50) {
+        return res.status(400).json({
+          success: false,
+          message: "Student ID cannot exceed 50 characters"
+        });
+      }
+      user.studentId = studentId;
+    }
+
+    // 11. Graduation Year validation (max 10)
+    if (req.body.graduationYear !== undefined) {
+      const graduationYear = String(req.body.graduationYear).trim();
+      if (graduationYear.length > 10) {
+        return res.status(400).json({
+          success: false,
+          message: "Graduation year cannot exceed 10 characters"
+        });
+      }
+      user.graduationYear = graduationYear;
+    }
+
+    // 12. Date of birth (string, max 30)
+    if (req.body.dateOfBirth !== undefined) {
+      const dateOfBirth = String(req.body.dateOfBirth).trim();
+      if (dateOfBirth.length > 30) {
+        return res.status(400).json({
+          success: false,
+          message: "Date of birth cannot exceed 30 characters"
+        });
+      }
+      user.dateOfBirth = dateOfBirth;
+    }
+
+    // 13. Year of study & semester (string, max 50)
+    if (req.body.yearOfStudy !== undefined) {
+      const yearOfStudy = String(req.body.yearOfStudy).trim();
+      if (yearOfStudy.length > 50) {
+        return res.status(400).json({
+          success: false,
+          message: "Year of study cannot exceed 50 characters"
+        });
+      }
+      user.yearOfStudy = yearOfStudy;
+    }
+
+    if (req.body.semester !== undefined) {
+      const semester = String(req.body.semester).trim();
+      if (semester.length > 50) {
+        return res.status(400).json({
+          success: false,
+          message: "Semester cannot exceed 50 characters"
+        });
+      }
+      user.semester = semester;
+    }
+
+    // Save updated user to MongoDB
+    await user.save();
+
+    const profileData = formatUserProfile(user);
+
+    return res.status(200).json({
+      success: true,
+      message: "Profile updated successfully",
+      user: profileData,
+      profile: profileData,
+      data: profileData
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Get current authenticated user profile
 // @route   GET /api/auth/me
 // @access  Private
 const getMe = async (req, res) => {
+  const profileData = formatUserProfile(req.user);
   return res.status(200).json({
     success: true,
-    user: {
-      id: req.user._id,
-      name: req.user.name,
-      email: req.user.email
-    }
+    user: profileData
   });
 };
 
@@ -328,5 +592,7 @@ module.exports = {
   forgotPassword,
   resetPassword,
   getMe,
+  getProfile,
+  updateProfile,
   logout
 };
