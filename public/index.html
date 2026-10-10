@@ -162,15 +162,17 @@
     <div class="app" id="mainApp" style="display: none;">
 
         <!-- Sidebar -->
-        <aside class="sidebar">
+        <aside class="sidebar" id="sidebarDrawer">
 
             <div class="logo">
-                <div class="logo-icon">🎓</div>
-
-                <div>
-                    <h2>StudentFlow</h2>
-                    <p>Productivity System</p>
+                <div class="logo-brand">
+                    <div class="logo-icon">🎓</div>
+                    <div>
+                        <h2>StudentFlow</h2>
+                        <p>Productivity System</p>
+                    </div>
                 </div>
+                <button type="button" class="sidebar-close-btn" id="sidebarCloseBtn" onclick="closeMobileSidebar()" aria-label="Close Navigation Menu" title="Close Menu">✕</button>
             </div>
 
             <nav id="sidebarNav">
@@ -226,14 +228,24 @@
 
         </aside>
 
+        <!-- Backdrop Overlay for Mobile Drawer Navigation -->
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeMobileSidebar()"></div>
+
         <!-- Main Content -->
         <main class="main-content">
 
             <header class="topbar">
 
-                <div>
-                    <h1 id="topbarTitle">Dashboard</h1>
-                    <p id="topbarSubtitle">Manage your academic tasks efficiently.</p>
+                <div class="topbar-title-group">
+                    <button type="button" class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleMobileSidebar()" aria-label="Open Navigation Menu" title="Open Menu">
+                        <span class="hamburger-bar"></span>
+                        <span class="hamburger-bar"></span>
+                        <span class="hamburger-bar"></span>
+                    </button>
+                    <div>
+                        <h1 id="topbarTitle">Dashboard</h1>
+                        <p id="topbarSubtitle">Manage your academic tasks efficiently.</p>
+                    </div>
                 </div>
 
                 <div class="topbar-actions">
@@ -591,34 +603,6 @@
             </div>
 
         </main>
-
-        <!-- Mobile Bottom Navigation Bar -->
-        <nav class="mobile-bottom-nav" id="mobileBottomNav">
-            <a href="#/dashboard" class="mobile-nav-item active" data-route="dashboard">
-                <span>📊</span>
-                Dashboard
-            </a>
-            <a href="#/tasks" class="mobile-nav-item" data-route="tasks">
-                <span>📝</span>
-                Tasks
-            </a>
-            <a href="#/pending" class="mobile-nav-item" data-route="pending">
-                <span>⏳</span>
-                Pending
-            </a>
-            <a href="#/completed" class="mobile-nav-item" data-route="completed">
-                <span>✅</span>
-                Done
-            </a>
-            <a href="#/overdue" class="mobile-nav-item" data-route="overdue">
-                <span>⚠️</span>
-                Overdue
-            </a>
-            <a href="#/statistics" class="mobile-nav-item" data-route="statistics">
-                <span>📈</span>
-                Stats
-            </a>
-        </nav>
 
     </div>
 
