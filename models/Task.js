@@ -40,8 +40,8 @@ const taskSchema = new mongoose.Schema(
     },
     dueDate: {
       type: String,
-      required: [true, "Due date is required"],
-      trim: true
+      trim: true,
+      default: ""
     },
     completed: {
       type: Boolean,

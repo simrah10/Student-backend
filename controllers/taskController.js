@@ -82,13 +82,6 @@ const createTask = async (req, res, next) => {
       });
     }
 
-    if (!dueDate || !dueDate.toString().trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "Due date is required"
-      });
-    }
-
     // Validate priority if provided, default to '1' (Low)
     const priorityVal = priority !== undefined ? String(priority).trim() : "1";
     if (!["1", "2", "3"].includes(priorityVal)) {
@@ -105,7 +98,7 @@ const createTask = async (req, res, next) => {
       subject: subject.toString().trim(),
       category: category ? category.toString().trim() : "",
       priority: priorityVal,
-      dueDate: dueDate.toString().trim(),
+      dueDate: dueDate ? dueDate.toString().trim() : "",
       completed: Boolean(completed)
     });
 
@@ -180,13 +173,7 @@ const updateTask = async (req, res, next) => {
     }
 
     if (dueDate !== undefined) {
-      if (!dueDate.toString().trim()) {
-        return res.status(400).json({
-          success: false,
-          message: "Due date cannot be empty"
-        });
-      }
-      task.dueDate = dueDate.toString().trim();
+      task.dueDate = dueDate ? dueDate.toString().trim() : "";
     }
 
     if (completed !== undefined) {
@@ -259,11 +246,101 @@ const deleteTask = async (req, res, next) => {
   }
 };
 
+// @desc    Get aggregated task statistics for authenticated user
+// @route   GET /api/tasks/stats & GET /api/tasks/statistics
+// @access  Private
+const getTaskStats = async (req, res, next) => {
+  try {
+    const tasks = await Task.find({ userId: req.user._id });
+
+    // Determine reference "today" date string in YYYY-MM-DD
+    // Supports optional ?today=YYYY-MM-DD query parameter for client timezone alignment
+    let today = new Date().toISOString().split("T")[0];
+    if (req.query.today && /^\d{4}-\d{2}-\d{2}$/.test(req.query.today.trim())) {
+      today = req.query.today.trim();
+    }
+
+    const total = tasks.length;
+    let completed = 0;
+    let overdue = 0;
+    let pending = 0;
+
+    const byPriority = {
+      high: 0,   // "3"
+      medium: 0, // "2"
+      low: 0     // "1"
+    };
+
+    const bySubject = {};
+    const byCategory = {};
+
+    for (const task of tasks) {
+      const isCompleted = Boolean(task.completed);
+      const rawDueDate = task.dueDate ? task.dueDate.trim() : "";
+      const hasValidDate = /^\d{4}-\d{2}-\d{2}$/.test(rawDueDate);
+
+      if (isCompleted) {
+        completed++;
+      } else if (hasValidDate && rawDueDate < today) {
+        overdue++;
+      } else {
+        // Incomplete task with due date today or later, or undated / no due date
+        pending++;
+      }
+
+      // Priority breakdown
+      if (task.priority === "3") byPriority.high++;
+      else if (task.priority === "2") byPriority.medium++;
+      else byPriority.low++;
+
+      // Subject breakdown
+      if (task.subject) {
+        const subj = task.subject.trim();
+        bySubject[subj] = (bySubject[subj] || 0) + 1;
+      }
+
+      // Category breakdown
+      const cat = task.category ? task.category.trim() : "Uncategorized";
+      byCategory[cat] = (byCategory[cat] || 0) + 1;
+    }
+
+    const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+    const statsData = {
+      total,
+      completed,
+      pending,
+      overdue,
+      completionRate,
+      referenceDate: today,
+      breakdown: {
+        byPriority,
+        bySubject,
+        byCategory
+      }
+    };
+
+    return res.status(200).json({
+      success: true,
+      data: statsData,
+      stats: statsData,
+      total,
+      completed,
+      pending,
+      overdue,
+      completionRate
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getTasks,
   getTaskById,
   createTask,
   updateTask,
   toggleTaskComplete,
-  deleteTask
+  deleteTask,
+  getTaskStats
 };

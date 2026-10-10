@@ -123,7 +123,9 @@ Health Check: http://localhost:5000/api/health
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
 | `GET` | `/api/health` | Health check endpoint returning API & DB status |
-| `GET` | `/api/tasks` | Retrieve all tasks (sorted newest first) |
+| `GET` | `/api/tasks` | Retrieve all tasks for authenticated user (sorted newest first) |
+| `GET` | `/api/tasks/stats` | Retrieve aggregated task statistics (total, completed, pending, overdue, completion rate & breakdowns) |
+| `GET` | `/api/tasks/statistics` | Alias for `/api/tasks/stats` |
 | `GET` | `/api/tasks/:id` | Retrieve a single task by custom numeric `id` or MongoDB `_id` |
 | `POST` | `/api/tasks` | Create a new task (validates required fields and priority) |
 | `PUT` | `/api/tasks/:id` | Update an existing task |
@@ -143,7 +145,7 @@ The Task model strictly conforms to the frontend data model:
 | `subject` | String | Yes | Course/subject name (e.g. `"Java"`, `"Calculus"`) |
 | `category` | String | No | Default: `""` (e.g. `"Assignment"`, `"Exam"`) |
 | `priority` | String | Yes | Allowed values: `"1"` (Low), `"2"` (Medium), `"3"` (High) |
-| `dueDate` | String | Yes | Format: `"YYYY-MM-DD"` |
+| `dueDate` | String | No | Format: `"YYYY-MM-DD"` or `""` (defaults to `""` for undated tasks) |
 | `completed` | Boolean | No | Default: `false` |
 
 ---
@@ -282,3 +284,52 @@ The Task model strictly conforms to the frontend data model:
   "message": "Task deleted successfully"
 }
 ```
+
+---
+
+### 7. Get Task Statistics (Charts & Metrics)
+`GET http://localhost:5000/api/tasks/stats`
+*(Optional query parameter: `?today=YYYY-MM-DD` to align with client timezone)*
+
+**Headers:**
+`Authorization: Bearer <jwt_token>`
+
+**Response (`200 OK`):**
+```json
+{
+  "success": true,
+  "total": 6,
+  "completed": 2,
+  "pending": 3,
+  "overdue": 1,
+  "completionRate": 33,
+  "data": {
+    "total": 6,
+    "completed": 2,
+    "pending": 3,
+    "overdue": 1,
+    "completionRate": 33,
+    "referenceDate": "2026-10-15",
+    "breakdown": {
+      "byPriority": {
+        "high": 2,
+        "medium": 2,
+        "low": 2
+      },
+      "bySubject": {
+        "Math": 2,
+        "Physics": 1,
+        "Chemistry": 1
+      },
+      "byCategory": {
+        "Assignment": 1,
+        "Lab": 1,
+        "Project": 2
+      }
+    }
+  }
+}
+```
+
+> **Invariant Guarantee:** `completed + pending + overdue === total` at all times without double counting.
+

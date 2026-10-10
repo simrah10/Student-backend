@@ -6,7 +6,8 @@ const {
   createTask,
   updateTask,
   toggleTaskComplete,
-  deleteTask
+  deleteTask,
+  getTaskStats
 } = require("../controllers/taskController");
 const { protect } = require("../middleware/auth");
 
@@ -17,6 +18,10 @@ router.use(protect);
 router.route("/")
   .get(getTasks)
   .post(createTask);
+
+// Task statistics endpoints (must precede /:id)
+router.get("/stats", getTaskStats);
+router.get("/statistics", getTaskStats);
 
 // Routes for /api/tasks/:id
 router.route("/:id")
