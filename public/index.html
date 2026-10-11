@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -7,6 +7,19 @@
     <!-- Configured Backend API Base URL for StudentFlow -->
     <meta name="api-base-url" content="https://student-backend-wdxq.onrender.com/api">
     <title>Student Productivity Management System</title>
+    <!-- Early theme initialization to prevent flash of wrong theme -->
+    <script>
+        (function() {
+            try {
+                var savedTheme = localStorage.getItem('studentflow_theme');
+                if (savedTheme === 'dark') {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                } else {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                }
+            } catch (e) {}
+        })();
+    </script>
     <link rel="stylesheet" href="style.css">
 </head>
 
@@ -205,11 +218,16 @@
                     <span>📈</span>
                     Statistics
                 </a>
+
+                <a href="#/profile" class="nav-item" id="profileBtn" data-route="profile">
+                    <span>👤</span>
+                    Profile
+                </a>
             </nav>
 
             <!-- Authenticated User Sidebar Badge -->
             <div class="sidebar-user-section">
-                <div class="user-profile-badge">
+                <div class="user-profile-badge" onclick="navigateTo('profile')" title="View and Edit Profile" role="button" tabindex="0">
                     <div id="sidebarUserInitials" class="user-initials">S</div>
                     <div class="user-badge-details">
                         <span id="sidebarUserName" class="user-badge-name">Student</span>
@@ -249,7 +267,7 @@
                 </div>
 
                 <div class="topbar-actions">
-                    <div class="topbar-user-badge">
+                    <div class="topbar-user-badge" onclick="navigateTo('profile')" title="View and Edit Profile" role="button" tabindex="0">
                         <div id="topbarUserInitials" class="user-initials">S</div>
                         <div class="topbar-user-text">
                             <strong id="topbarUserName">Student</strong>
@@ -529,36 +547,83 @@
             <!-- ================= VIEW 6: STATISTICS ================= -->
             <div class="view-page" id="view-statistics" style="display: none;">
 
-                <!-- Statistics Overview Grid -->
-                <section class="statistics-section" id="statisticsSection">
+                <!-- Task Statistics Graphs Section -->
+                <section class="charts-section" id="taskChartsSection">
                     <div class="section-heading">
                         <div>
-                            <h2>Productivity Summary</h2>
-                            <p>Overview of total, completed, pending, and overdue tasks.</p>
+                            <h2>Task Statistics & Analytics</h2>
+                            <p>Visual breakdown of your task distribution, completion rates, and status.</p>
                         </div>
                     </div>
 
-                    <div class="statistics-grid">
-                        <div class="statistics-card" onclick="navigateTo('tasks')" style="cursor: pointer;" title="View all tasks">
-                            <p>Total Tasks</p>
-                            <h2 id="statsTotal">0</h2>
+                    <!-- Chart Cards Grid -->
+                    <div class="charts-grid" id="chartsGrid">
+
+                        <!-- Chart Card 1: Status Distribution (Doughnut) -->
+                        <div class="chart-card">
+                            <div class="chart-card-header">
+                                <div>
+                                    <h3>Task Distribution</h3>
+                                    <p class="chart-subtitle">Proportion of completed, pending, and overdue tasks</p>
+                                </div>
+                                <span class="chart-badge" id="chartTotalBadge">0 Tasks</span>
+                            </div>
+
+                            <div class="chart-body">
+                                <div class="chart-canvas-wrap doughnut-wrap">
+                                    <canvas id="statusDoughnutChart" aria-label="Task Distribution Doughnut Chart" role="img"></canvas>
+                                </div>
+
+                                <!-- Custom Accessible Legend & Metrics -->
+                                <div class="chart-legend" id="doughnutLegend">
+                                    <div class="legend-item" onclick="navigateTo('completed')" style="cursor: pointer;" title="View Completed Tasks">
+                                        <span class="legend-dot dot-completed"></span>
+                                        <span class="legend-label">Completed</span>
+                                        <strong class="legend-value" id="legendCompletedCount">0 (0%)</strong>
+                                    </div>
+                                    <div class="legend-item" onclick="navigateTo('pending')" style="cursor: pointer;" title="View Pending Tasks">
+                                        <span class="legend-dot dot-pending"></span>
+                                        <span class="legend-label">Pending</span>
+                                        <strong class="legend-value" id="legendPendingCount">0 (0%)</strong>
+                                    </div>
+                                    <div class="legend-item" onclick="navigateTo('overdue')" style="cursor: pointer;" title="View Overdue Tasks">
+                                        <span class="legend-dot dot-overdue"></span>
+                                        <span class="legend-label">Overdue</span>
+                                        <strong class="legend-value" id="legendOverdueCount">0 (0%)</strong>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
-                        <div class="statistics-card" onclick="navigateTo('completed')" style="cursor: pointer;" title="View completed tasks">
-                            <p>Completed Tasks</p>
-                            <h2 id="statsCompleted">0</h2>
+                        <!-- Chart Card 2: Status Breakdown (Bar Chart) -->
+                        <div class="chart-card">
+                            <div class="chart-card-header">
+                                <div>
+                                    <h3>Task Status Breakdown</h3>
+                                    <p class="chart-subtitle">Comparison across all task categories and deadlines</p>
+                                </div>
+                                <span class="chart-badge rate-badge" id="chartRateBadge">0% Done</span>
+                            </div>
+
+                            <div class="chart-body">
+                                <div class="chart-canvas-wrap bar-wrap">
+                                    <canvas id="statusBarChart" aria-label="Task Status Bar Chart" role="img"></canvas>
+                                </div>
+                            </div>
                         </div>
 
-                        <div class="statistics-card" onclick="navigateTo('pending')" style="cursor: pointer;" title="View pending tasks">
-                            <p>Pending Tasks</p>
-                            <h2 id="statsPending">0</h2>
-                        </div>
-
-                        <div class="statistics-card" onclick="navigateTo('overdue')" style="cursor: pointer;" title="View overdue tasks">
-                            <p>Overdue Tasks</p>
-                            <h2 id="statsOverdue">0</h2>
-                        </div>
                     </div>
+
+                    <!-- Empty State for Charts (Shown when 0 tasks exist) -->
+                    <div class="charts-empty-state" id="chartsEmptyState" style="display: none;">
+                        <div class="empty-icon">📊</div>
+                        <h3>No Task Statistics Available</h3>
+                        <p>Create your academic tasks to see automated visual analytics and graphs.</p>
+                        <button type="button" class="primary-btn" onclick="openTaskForm()" style="margin-top: 14px;">
+                            + Add Your First Task
+                        </button>
+                    </div>
+
                 </section>
 
                 <!-- Statistics Progress Section -->
@@ -602,10 +667,283 @@
 
             </div>
 
+            <!-- ================= VIEW 7: USER PROFILE ================= -->
+            <div class="view-page" id="view-profile" style="display: none;">
+
+                <!-- Profile Header Card -->
+                <section class="profile-header-card">
+                    <div class="profile-header-main">
+                        <div class="profile-avatar-wrapper">
+                            <div class="profile-avatar-preview" id="profileAvatarPreview">
+                                <span id="profileAvatarInitials" class="profile-avatar-text">S</span>
+                                <img id="profileAvatarImg" class="profile-avatar-image" src="" alt="Profile Photo" style="display: none;">
+                            </div>
+                            <div class="profile-avatar-actions" id="avatarActionsContainer">
+                                <label for="profileAvatarInput" class="avatar-upload-btn" id="avatarUploadBtn" title="Upload new photo">
+                                    📷 Upload Photo
+                                    <input type="file" id="profileAvatarInput" accept="image/*" onchange="handleAvatarFileSelect(event)" style="display: none;">
+                                </label>
+                                <button type="button" class="avatar-remove-btn" id="avatarRemoveBtn" onclick="removeAvatarPhoto()" title="Remove photo" style="display: none;">
+                                    ✕ Remove
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="profile-header-info">
+                            <div class="profile-title-row">
+                                <h2 id="profileDisplayName">Student</h2>
+                                <span class="profile-status-badge">Active Student</span>
+                            </div>
+                            <p class="profile-header-email" id="profileDisplayEmail">student@university.edu</p>
+                            <p class="profile-header-sub" id="profileDisplaySub">StudentFlow Productivity Account</p>
+                        </div>
+                    </div>
+
+                    <div class="profile-header-cta">
+                        <button type="button" class="primary-btn" id="profileEditToggleBtn" onclick="toggleProfileEditMode(true)">
+                            ✏️ Edit Profile
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Profile Feedback Banner -->
+                <div id="profileAlert" class="profile-alert" style="display: none;" role="alert"></div>
+
+                <!-- Theme & Appearance Preference Section -->
+                <section class="profile-section" id="profileThemeSection">
+                    <div class="section-heading">
+                        <div>
+                            <h2>Theme & Appearance</h2>
+                            <p>Choose between Light Mode and Dark Mode for your interface.</p>
+                        </div>
+                    </div>
+
+                    <div class="theme-switcher-wrapper">
+                        <div class="theme-segmented-control" role="radiogroup" aria-label="Theme Selection">
+                            <button type="button" 
+                                    class="theme-choice-btn active" 
+                                    id="themeLightBtn" 
+                                    onclick="setAppTheme('light')" 
+                                    role="radio" 
+                                    aria-checked="true"
+                                    title="Switch to Light Mode">
+                                <span class="theme-choice-icon">☀️</span>
+                                <span class="theme-choice-text">Light Mode</span>
+                            </button>
+                            <button type="button" 
+                                    class="theme-choice-btn" 
+                                    id="themeDarkBtn" 
+                                    onclick="setAppTheme('dark')" 
+                                    role="radio" 
+                                    aria-checked="false"
+                                    title="Switch to Dark Mode">
+                                <span class="theme-choice-icon">🌙</span>
+                                <span class="theme-choice-text">Dark Mode</span>
+                            </button>
+                        </div>
+                        <div class="theme-indicator-note">
+                            <span id="themeIndicatorNote">Currently using Light Mode</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Security & Password Section -->
+                <section class="profile-section" id="profileSecuritySection">
+                    <div class="section-heading">
+                        <div>
+                            <h2>Security & Password</h2>
+                            <p>Keep your account secure by updating your password regularly.</p>
+                        </div>
+                        <button type="button" class="secondary-btn" id="toggleChangePasswordBtn" onclick="toggleChangePasswordForm()">
+                            <span>Change Password</span>
+                        </button>
+                    </div>
+
+                    <!-- Change Password Feedback Banner -->
+                    <div id="changePasswordAlert" class="auth-alert" style="display: none; margin-top: 14px;" role="alert"></div>
+
+                    <!-- Change Password Form Container -->
+                    <div id="changePasswordContainer" style="display: none; margin-top: 18px;">
+                        <form id="changePasswordForm" onsubmit="handleChangePasswordSubmit(event)">
+                            <div class="form-grid profile-grid">
+                                <div class="input-group">
+                                    <label for="currentPasswordInput">Current Password <span class="required-star">*</span></label>
+                                    <div class="password-wrapper">
+                                        <input type="password" id="currentPasswordInput" placeholder="Enter your current password" required autocomplete="current-password">
+                                        <button type="button" class="toggle-password" onclick="togglePasswordVisibility('currentPasswordInput', this)" title="Show/Hide Password">👁️</button>
+                                    </div>
+                                </div>
+
+                                <div class="input-group">
+                                    <label for="newPasswordInput">New Password <span class="required-star">*</span></label>
+                                    <div class="password-wrapper">
+                                        <input type="password" id="newPasswordInput" placeholder="Minimum 8 characters" required autocomplete="new-password">
+                                        <button type="button" class="toggle-password" onclick="togglePasswordVisibility('newPasswordInput', this)" title="Show/Hide Password">👁️</button>
+                                    </div>
+                                    <small class="field-help-text">Must be at least 8 characters with uppercase, lowercase, number, and special character.</small>
+                                </div>
+
+                                <div class="input-group">
+                                    <label for="confirmNewPasswordInput">Confirm New Password <span class="required-star">*</span></label>
+                                    <div class="password-wrapper">
+                                        <input type="password" id="confirmNewPasswordInput" placeholder="Re-enter your new password" required autocomplete="new-password">
+                                        <button type="button" class="toggle-password" onclick="togglePasswordVisibility('confirmNewPasswordInput', this)" title="Show/Hide Password">👁️</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="profile-form-actions" style="display: flex; gap: 10px; margin-top: 18px;">
+                                <button type="button" class="secondary-btn" onclick="toggleChangePasswordForm(false)">
+                                    Cancel
+                                </button>
+                                <button type="submit" class="primary-btn" id="changePasswordSubmitBtn">
+                                    Update Password
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- Profile Form -->
+                <form id="profileForm" onsubmit="handleProfileSubmit(event)">
+
+                    <!-- 1. PERSONAL INFORMATION -->
+                    <section class="profile-section">
+                        <div class="section-heading">
+                            <div>
+                                <h2>Personal Information</h2>
+                                <p>Manage your personal profile and contact details.</p>
+                            </div>
+                        </div>
+
+                        <div class="form-grid profile-grid">
+                            <div class="input-group">
+                                <label for="profileNameInput">Full Name <span class="required-star">*</span></label>
+                                <input type="text" id="profileNameInput" placeholder="Enter your full name" required disabled maxlength="100">
+                            </div>
+
+                            <div class="input-group">
+                                <div class="input-label-row">
+                                    <label for="profileEmailInput">Email Address</label>
+                                    <span class="field-hint-badge">🔒 Read-Only</span>
+                                </div>
+                                <input type="email" id="profileEmailInput" placeholder="your.email@university.edu" disabled title="Account email is tied to authentication and cannot be edited">
+                                <small class="field-help-text">Account email is tied to your login and cannot be altered here.</small>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="profileGenderInput">Gender</label>
+                                <select id="profileGenderInput" disabled>
+                                    <option value="">Select Gender</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                    <option value="Prefer not to say">Prefer not to say</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="profileDobInput">Date of Birth</label>
+                                <input type="date" id="profileDobInput" disabled>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="profilePhoneInput">Phone Number</label>
+                                <input type="tel" id="profilePhoneInput" placeholder="e.g. +1 555-0199" disabled maxlength="25">
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- 2. ACADEMIC INFORMATION -->
+                    <section class="profile-section">
+                        <div class="section-heading">
+                            <div>
+                                <h2>Academic Information</h2>
+                                <p>Details about your current education, university, and degree program.</p>
+                            </div>
+                        </div>
+
+                        <div class="form-grid profile-grid">
+                            <div class="input-group">
+                                <label for="profileInstitutionInput">College / University Name</label>
+                                <input type="text" id="profileInstitutionInput" placeholder="e.g. Oxford University" disabled maxlength="150">
+                            </div>
+
+                            <div class="input-group">
+                                <label for="profileDegreeInput">Course / Degree</label>
+                                <input type="text" id="profileDegreeInput" placeholder="e.g. Bachelor of Science in Computer Science" disabled maxlength="100">
+                            </div>
+
+                            <div class="input-group">
+                                <label for="profileDepartmentInput">Department / Branch</label>
+                                <input type="text" id="profileDepartmentInput" placeholder="e.g. Computer Science & Engineering" disabled maxlength="100">
+                            </div>
+
+                            <div class="input-group">
+                                <label for="profileYearInput">Current Year of Study</label>
+                                <select id="profileYearInput" disabled>
+                                    <option value="">Select Year</option>
+                                    <option value="1st Year">1st Year (Freshman)</option>
+                                    <option value="2nd Year">2nd Year (Sophomore)</option>
+                                    <option value="3rd Year">3rd Year (Junior)</option>
+                                    <option value="4th Year">4th Year (Senior)</option>
+                                    <option value="5th Year">5th Year</option>
+                                    <option value="Postgraduate / Master's">Postgraduate / Master's</option>
+                                    <option value="PhD / Doctorate">PhD / Doctorate</option>
+                                    <option value="Graduated">Graduated</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="profileSemesterInput">Current Semester</label>
+                                <select id="profileSemesterInput" disabled>
+                                    <option value="">Select Semester</option>
+                                    <option value="Semester 1">Semester 1</option>
+                                    <option value="Semester 2">Semester 2</option>
+                                    <option value="Semester 3">Semester 3</option>
+                                    <option value="Semester 4">Semester 4</option>
+                                    <option value="Semester 5">Semester 5</option>
+                                    <option value="Semester 6">Semester 6</option>
+                                    <option value="Semester 7">Semester 7</option>
+                                    <option value="Semester 8">Semester 8</option>
+                                    <option value="Semester 9+">Semester 9+</option>
+                                    <option value="Completed">Completed</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="profileStudentIdInput">Student ID / Roll Number</label>
+                                <input type="text" id="profileStudentIdInput" placeholder="e.g. CS-2023-0891" disabled maxlength="50">
+                            </div>
+
+                            <div class="input-group">
+                                <label for="profileGraduationYearInput">Expected Graduation Year</label>
+                                <input type="number" id="profileGraduationYearInput" placeholder="e.g. 2027" min="1990" max="2040" disabled>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Profile Form Actions -->
+                    <div class="profile-form-actions" id="profileFormActions" style="display: none;">
+                        <button type="button" class="secondary-btn" id="profileCancelBtn" onclick="cancelProfileEdit()">
+                            Cancel
+                        </button>
+                        <button type="submit" class="primary-btn" id="profileSaveBtn">
+                            <span>💾 Save Changes</span>
+                        </button>
+                    </div>
+
+                </form>
+
+            </div>
+
         </main>
 
     </div>
 
+    <script src="chart.min.js"></script>
     <script src="script.js"></script>
 
 </body>
