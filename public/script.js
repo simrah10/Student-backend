@@ -2065,7 +2065,6 @@ function hideProfileAlert() {
     alertBox.textContent = "";
 }
 
-
 // ============================================================
 // SECURITY & CHANGE PASSWORD FUNCTIONALITY (PROFILE PAGE)
 // ============================================================
@@ -2099,11 +2098,12 @@ function toggleChangePasswordForm(show) {
 /**
  * Display alert banner in change password section
  */
-function showChangePasswordAlert(message, type = "error") {
+function showChangePasswordAlert(message, type) {
     const alertBox = document.getElementById("changePasswordAlert");
     if (!alertBox) return;
+    const alertType = type || "error";
     alertBox.textContent = message;
-    alertBox.className = uth-alert ${type};
+    alertBox.className = "auth-alert " + alertType;
     alertBox.style.display = "block";
     alertBox.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
@@ -2185,13 +2185,13 @@ async function handleChangePasswordSubmit(event) {
     setBtnLoading(submitBtn, true, "Updating...");
 
     try {
-        const res = await fetch(${API_BASE_URL}/auth/change-password, {
+        const res = await fetch(API_BASE_URL + "/auth/change-password", {
             method: "PUT",
             headers: getAuthHeaders(),
             body: JSON.stringify({
-                currentPassword,
-                newPassword,
-                confirmPassword
+                currentPassword: currentPassword,
+                newPassword: newPassword,
+                confirmPassword: confirmPassword
             })
         });
 
@@ -2203,14 +2203,14 @@ async function handleChangePasswordSubmit(event) {
         }
 
         if (res.ok && data && data.success) {
-            showChangePasswordAlert(data.message || "Password updated successfully!", "success");
+            showChangePasswordAlert((data && data.message) || "Password updated successfully!", "success");
             // Clear inputs on success
             if (currentPassInput) currentPassInput.value = "";
             if (newPassInput) newPassInput.value = "";
             if (confirmPassInput) confirmPassInput.value = "";
 
             // Automatically close form after 2.5 seconds while keeping success notice visible
-            setTimeout(() => {
+            setTimeout(function() {
                 const container = document.getElementById("changePasswordContainer");
                 const toggleBtn = document.getElementById("toggleChangePasswordBtn");
                 if (container) container.style.display = "none";
@@ -2218,12 +2218,12 @@ async function handleChangePasswordSubmit(event) {
             }, 2500);
         } else {
             // Keep fields intact on failure so user does not lose input
-            const errorMsg = data?.message ||
+            const errorMsg = (data && data.message) ||
                 (res.status === 401
                     ? "Your session has expired. Please log in again."
                     : res.status === 404
                     ? "Password change endpoint is not available on this server."
-                    : Failed to update password (Server error ). Please check your current password and try again.);
+                    : "Failed to update password (Server error " + res.status + "). Please check your current password and try again.");
             showChangePasswordAlert(errorMsg, "error");
         }
     } catch (err) {
