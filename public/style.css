@@ -403,6 +403,20 @@ select {
     color: #991b1b;
 }
 
+.logout-icon {
+    width: 15px;
+    height: 15px;
+    display: inline-block;
+    flex-shrink: 0;
+    vertical-align: middle;
+    transition: transform 0.2s ease;
+}
+
+.logout-btn:hover .logout-icon,
+.logout-btn-top:hover .logout-icon {
+    transform: translateX(1px);
+}
+
 .sidebar-user-section {
     margin-top: auto;
     padding-top: 18px;
