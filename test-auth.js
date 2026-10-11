@@ -78,8 +78,8 @@ async function runAuthTests() {
     const regResA = await api("POST", "/api/auth/register", {
       name: "Emma Watson",
       email: "emma@oxford.edu",
-      password: "password123",
-      confirmPassword: "password123"
+      password: "Password123!",
+      confirmPassword: "Password123!"
     });
     if (regResA.status !== 201 || !regResA.body.token) {
       throw new Error(`Registration failed: ${JSON.stringify(regResA.body)}`);
@@ -92,8 +92,8 @@ async function runAuthTests() {
     const mismatchRes = await api("POST", "/api/auth/register", {
       name: "Mismatch User",
       email: "mismatch@test.com",
-      password: "password123",
-      confirmPassword: "differentpassword"
+      password: "Password123!",
+      confirmPassword: "DifferentPassword123!"
     });
     if (mismatchRes.status === 400 && mismatchRes.body.message.includes("match")) {
       console.log("✓ Correctly rejected mismatched passwords with 400 Bad Request!");
@@ -106,7 +106,7 @@ async function runAuthTests() {
     const dupRes = await api("POST", "/api/auth/register", {
       name: "Emma Imposter",
       email: "emma@oxford.edu",
-      password: "password456"
+      password: "Password456!"
     });
     if (dupRes.status === 400 && dupRes.body.message.includes("exists")) {
       console.log("✓ Duplicate registration rejected with 400 Bad Request!");
@@ -118,7 +118,7 @@ async function runAuthTests() {
     console.log("\n[4/17] Testing POST /api/auth/login (Correct credentials)...");
     const loginRes = await api("POST", "/api/auth/login", {
       email: "emma@oxford.edu",
-      password: "password123"
+      password: "Password123!"
     });
     if (loginRes.status === 200 && loginRes.body.token) {
       console.log("✓ User A logged in successfully!");
@@ -130,7 +130,7 @@ async function runAuthTests() {
     console.log("\n[5/17] Testing POST /api/auth/login (Incorrect password)...");
     const badLoginRes = await api("POST", "/api/auth/login", {
       email: "emma@oxford.edu",
-      password: "wrongpassword"
+      password: "WrongPassword999!"
     });
     if (badLoginRes.status === 401) {
       console.log("✓ Incorrect password rejected with 401 Unauthorized!");
@@ -220,8 +220,8 @@ async function runAuthTests() {
     console.log("\n[10/17] Testing invalid/tampered token rejection...");
     const invalidTokenRes = await api("POST", "/api/auth/reset-password", {
       token: "fake_tampered_token_xyz",
-      password: "newpassword789",
-      confirmPassword: "newpassword789"
+      password: "NewPassword789!",
+      confirmPassword: "NewPassword789!"
     });
     if (invalidTokenRes.status === 400 && invalidTokenRes.body.message.includes("Invalid or expired")) {
       console.log("✓ Tampered token correctly rejected with 400 Bad Request!");
@@ -243,8 +243,8 @@ async function runAuthTests() {
 
     const expiredRes = await api("POST", "/api/auth/reset-password", {
       token: freshToken,
-      password: "newpassword789",
-      confirmPassword: "newpassword789"
+      password: "NewPassword789!",
+      confirmPassword: "NewPassword789!"
     });
     if (expiredRes.status === 400 && expiredRes.body.message.includes("Invalid or expired")) {
       console.log("✓ Expired token correctly rejected with 400 Bad Request!");
@@ -261,8 +261,8 @@ async function runAuthTests() {
 
     const resetSuccessRes = await api("POST", "/api/auth/reset-password", {
       token: validToken,
-      password: "newpassword789",
-      confirmPassword: "newpassword789"
+      password: "NewPassword789!",
+      confirmPassword: "NewPassword789!"
     });
     if (resetSuccessRes.status === 200 && resetSuccessRes.body.token) {
       console.log("✓ Password reset successful with valid token! New JWT session returned.");
@@ -274,8 +274,8 @@ async function runAuthTests() {
     console.log("\n[13/17] Testing single-use token invalidation (token reuse)...");
     const reuseRes = await api("POST", "/api/auth/reset-password", {
       token: validToken,
-      password: "anotherpassword123",
-      confirmPassword: "anotherpassword123"
+      password: "AnotherPassword123!",
+      confirmPassword: "AnotherPassword123!"
     });
     if (reuseRes.status === 400 && reuseRes.body.message.includes("Invalid or expired")) {
       console.log("✓ Token reuse correctly rejected! Token was invalidated after first use.");
@@ -287,7 +287,7 @@ async function runAuthTests() {
     console.log("\n[14/17] Testing Login with NEW password...");
     const newLoginRes = await api("POST", "/api/auth/login", {
       email: "emma@oxford.edu",
-      password: "newpassword789"
+      password: "NewPassword789!"
     });
     if (newLoginRes.status === 200 && newLoginRes.body.token) {
       console.log("✓ Logged in with new password successfully!");
@@ -298,7 +298,7 @@ async function runAuthTests() {
     // Old password must now fail
     const oldLoginRes = await api("POST", "/api/auth/login", {
       email: "emma@oxford.edu",
-      password: "password123"
+      password: "Password123!"
     });
     if (oldLoginRes.status === 401) {
       console.log("✓ Old password correctly rejected after password reset!");
@@ -311,7 +311,7 @@ async function runAuthTests() {
     const regResB = await api("POST", "/api/auth/register", {
       name: "James Potter",
       email: "james@oxford.edu",
-      password: "password321"
+      password: "Password321!"
     });
     const tokenB = regResB.body.token;
 

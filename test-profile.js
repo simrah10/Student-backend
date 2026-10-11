@@ -84,8 +84,8 @@ async function runProfileTests() {
     const regResA = await api("POST", "/api/auth/register", {
       name: "Emma Watson",
       email: "emma@oxford.edu",
-      password: "password123",
-      confirmPassword: "password123"
+      password: "Password123!",
+      confirmPassword: "Password123!"
     });
     if (regResA.status !== 201 || !regResA.body.token) {
       throw new Error("User A registration failed: " + JSON.stringify(regResA));
@@ -270,8 +270,8 @@ async function runProfileTests() {
     const regResB = await api("POST", "/api/auth/register", {
       name: "James Potter",
       email: "james@oxford.edu",
-      password: "password321",
-      confirmPassword: "password321"
+      password: "Password321!",
+      confirmPassword: "Password321!"
     });
     const tokenB = regResB.body.token;
 
@@ -322,7 +322,7 @@ async function runProfileTests() {
     // Verify User A can still log in with original password (password was not touched)
     const loginOriginalRes = await api("POST", "/api/auth/login", {
       email: "emma@oxford.edu",
-      password: "password123"
+      password: "Password123!"
     });
     if (loginOriginalRes.status === 200 && loginOriginalRes.body.token) {
       console.log("✓ Protected fields ignored: Original password intact!");

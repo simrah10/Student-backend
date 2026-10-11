@@ -35,6 +35,60 @@ const generateToken = (user) => {
   );
 };
 
+/**
+ * Validate password strength against policy:
+ * - At least 8 characters
+ * - At least one uppercase letter
+ * - At least one lowercase letter
+ * - At least one digit
+ * - At least one special character
+ */
+const validatePasswordStrength = (password) => {
+  if (!password || typeof password !== "string") {
+    return {
+      isValid: false,
+      message: "Password is required"
+    };
+  }
+
+  if (password.length < 8) {
+    return {
+      isValid: false,
+      message: "Password must be at least 8 characters long"
+    };
+  }
+
+  if (!/[A-Z]/.test(password)) {
+    return {
+      isValid: false,
+      message: "Password must contain at least one uppercase letter"
+    };
+  }
+
+  if (!/[a-z]/.test(password)) {
+    return {
+      isValid: false,
+      message: "Password must contain at least one lowercase letter"
+    };
+  }
+
+  if (!/[0-9]/.test(password)) {
+    return {
+      isValid: false,
+      message: "Password must contain at least one number"
+    };
+  }
+
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    return {
+      isValid: false,
+      message: "Password must contain at least one special character"
+    };
+  }
+
+  return { isValid: true };
+};
+
 // @desc    Register a new user with email & password
 // @route   POST /api/auth/register
 // @access  Public
@@ -65,10 +119,11 @@ const register = async (req, res, next) => {
       });
     }
 
-    if (!password || password.length < 6) {
+    const passwordValidation = validatePasswordStrength(password);
+    if (!passwordValidation.isValid) {
       return res.status(400).json({
         success: false,
-        message: "Password must be at least 6 characters long"
+        message: passwordValidation.message
       });
     }
 
@@ -243,10 +298,11 @@ const resetPassword = async (req, res, next) => {
       });
     }
 
-    if (!password || password.length < 6) {
+    const passwordValidation = validatePasswordStrength(password);
+    if (!passwordValidation.isValid) {
       return res.status(400).json({
         success: false,
-        message: "New password must be at least 6 characters long"
+        message: passwordValidation.message
       });
     }
 
@@ -586,11 +642,93 @@ const logout = (req, res) => {
   });
 };
 
+// @desc    Change authenticated user password
+// @route   PUT /api/auth/change-password, POST /api/auth/change-password, PUT /api/auth/password
+// @access  Private
+const changePassword = async (req, res, next) => {
+  try {
+    const currentPassword = req.body.currentPassword || req.body.oldPassword;
+    const newPassword = req.body.newPassword || req.body.password;
+    const confirmPassword = req.body.confirmPassword || req.body.confirmNewPassword;
+
+    if (!currentPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Current password is required"
+      });
+    }
+
+    if (!newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "New password is required"
+      });
+    }
+
+    // Retrieve user with password hash explicitly selected
+    const user = await User.findById(req.user._id).select("+password");
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    // Verify current password with bcrypt
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({
+        success: false,
+        message: "Current password is incorrect"
+      });
+    }
+
+    // Validate new password strength
+    const passwordValidation = validatePasswordStrength(newPassword);
+    if (!passwordValidation.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: passwordValidation.message
+      });
+    }
+
+    // Confirm password if provided
+    if (confirmPassword !== undefined && newPassword !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Passwords do not match"
+      });
+    }
+
+    // Prevent reusing current password
+    if (currentPassword === newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "New password must be different from current password"
+      });
+    }
+
+    // Hash new password using bcryptjs with 10 salt rounds
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Password changed successfully"
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
   forgotPassword,
   resetPassword,
+  changePassword,
+  validatePasswordStrength,
   getMe,
   getProfile,
   updateProfile,

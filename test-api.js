@@ -102,8 +102,8 @@ async function runTests() {
     const regRes = await api("POST", "/api/auth/register", {
       name: "API Tester",
       email: "apitester@university.edu",
-      password: "password123",
-      confirmPassword: "password123"
+      password: "Password123!",
+      confirmPassword: "Password123!"
     }, null);
     if (regRes.status === 201 && regRes.body.token) {
       authToken = regRes.body.token;
