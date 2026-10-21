@@ -4,6 +4,7 @@ const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const { MongoMemoryServer } = require("mongodb-memory-server");
 const User = require("./models/User");
+const { getLastSentEmail } = require("./services/emailService");
 
 const request = (options, postData) => {
   return new Promise((resolve, reject) => {
@@ -122,11 +123,20 @@ async function runPasswordSecurityTests() {
       confirmPassword: strongPassword
     });
 
-    if (regRes.status !== 201 || !regRes.body.token) {
+    if (regRes.status !== 201 || !regRes.body.requiresVerification) {
       throw new Error(`Registration failed with valid password: ${JSON.stringify(regRes.body)}`);
     }
-    const token = regRes.body.token;
-    console.log("✓ Registration succeeded with valid strong password!");
+
+    const emailData = getLastSentEmail();
+    const verifyRes = await api("POST", "/api/auth/verify-email", {
+      email: "hannah@hogwarts.edu",
+      otp: emailData.otp
+    });
+    if (verifyRes.status !== 200 || !verifyRes.body.token) {
+      throw new Error(`Email verification failed: ${JSON.stringify(verifyRes.body)}`);
+    }
+    const token = verifyRes.body.token;
+    console.log("✓ Registration succeeded with valid strong password and verified with OTP!");
 
     // 4. Verify MongoDB Password Storage & Field Protection
     console.log("\n[4/10] Inspecting raw MongoDB document for password hashing & privacy...");
