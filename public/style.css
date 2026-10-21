@@ -3373,3 +3373,368 @@ input#profileGraduationYearInput:disabled {
     }
 }
 
+/* ============================================================
+   GUEST MODE CONTROLS & STYLING
+   ============================================================ */
+
+/* Guest Mode Topbar Controls */
+.topbar-guest-auth {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.topbar-user-auth {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-guest-login {
+    background: transparent;
+    border: 1px solid var(--border-color, #e2e8f0);
+    color: var(--text-primary, #18202f);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-guest-login:hover {
+    background: var(--bg-hover, #f1f5f9);
+    border-color: #cbd5e1;
+}
+
+.btn-guest-signup {
+    background: #4f46e5;
+    border: 1px solid #4f46e5;
+    color: #ffffff;
+    padding: 8px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 2px rgba(79, 70, 229, 0.2);
+}
+
+.btn-guest-signup:hover {
+    background: #4338ca;
+    border-color: #4338ca;
+}
+
+/* Guest Sidebar Info & Buttons */
+.sidebar-guest-auth {
+    padding: 12px 14px;
+    background: var(--bg-surface, #f8fafc);
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 10px;
+    margin-bottom: 12px;
+}
+
+.guest-sidebar-badge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.guest-avatar-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: #e2e8f0;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+}
+
+.guest-badge-details {
+    display: flex;
+    flex-direction: column;
+}
+
+.guest-badge-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary, #18202f);
+}
+
+.guest-badge-hint {
+    font-size: 11px;
+    color: var(--text-secondary, #64748b);
+}
+
+.guest-sidebar-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+}
+
+.sidebar-guest-btn {
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+}
+
+.sidebar-guest-btn.login-btn {
+    background: var(--bg-card, #ffffff);
+    border: 1px solid var(--border-color, #cbd5e1);
+    color: var(--text-primary, #18202f);
+}
+
+.sidebar-guest-btn.login-btn:hover {
+    background: #f1f5f9;
+}
+
+.sidebar-guest-btn.signup-btn {
+    background: #4f46e5;
+    border: 1px solid #4f46e5;
+    color: #ffffff;
+}
+
+.sidebar-guest-btn.signup-btn:hover {
+    background: #4338ca;
+}
+
+/* Guest Welcome Banner on Dashboard */
+.guest-welcome-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(99, 102, 241, 0.04) 100%);
+    border: 1px solid rgba(79, 70, 229, 0.2);
+    border-radius: 12px;
+    padding: 14px 20px;
+    margin-bottom: 24px;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.guest-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--text-primary, #1e293b);
+    font-size: 14px;
+    line-height: 1.4;
+    flex: 1;
+}
+
+.guest-banner-icon {
+    font-size: 24px;
+}
+
+.guest-banner-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.guest-banner-login-btn {
+    background: var(--bg-card, #ffffff);
+    border: 1px solid #cbd5e1;
+    color: #1e293b;
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.guest-banner-login-btn:hover {
+    background: #f8fafc;
+}
+
+.guest-banner-signup-btn {
+    background: #4f46e5;
+    border: 1px solid #4f46e5;
+    color: #ffffff;
+    padding: 7px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.guest-banner-signup-btn:hover {
+    background: #4338ca;
+}
+
+/* Guest Profile Prompt */
+.guest-profile-prompt {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+}
+
+.guest-prompt-card {
+    background: var(--bg-card, #ffffff);
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 16px;
+    padding: 40px 32px;
+    max-width: 480px;
+    text-align: center;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+}
+
+.guest-prompt-icon {
+    font-size: 48px;
+    display: inline-block;
+    margin-bottom: 16px;
+}
+
+.guest-prompt-card h3 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary, #18202f);
+    margin-bottom: 10px;
+}
+
+.guest-prompt-card p {
+    font-size: 14px;
+    color: var(--text-secondary, #64748b);
+    line-height: 1.5;
+    margin-bottom: 24px;
+}
+
+.guest-prompt-actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+}
+
+/* Auth Card Close Button */
+.auth-card {
+    position: relative;
+}
+
+.auth-close-btn {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    background: #f1f5f9;
+    border: none;
+    color: #64748b;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.auth-close-btn:hover {
+    background: #e2e8f0;
+    color: #18202f;
+}
+
+.auth-guest-link-row {
+    margin-top: 14px;
+    text-align: center;
+}
+
+.auth-guest-cancel-btn {
+    background: transparent;
+    border: none;
+    color: #64748b;
+    font-size: 13px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+.auth-guest-cancel-btn:hover {
+    color: #18202f;
+    text-decoration: underline;
+}
+
+/* Guest Warning Modal */
+.guest-warning-card {
+    max-width: 440px;
+    text-align: center;
+    padding: 24px;
+}
+
+.guest-warning-badge {
+    font-size: 36px;
+    margin-bottom: 8px;
+}
+
+.guest-warning-text {
+    font-size: 14px;
+    color: var(--text-secondary, #475569);
+    line-height: 1.5;
+    margin: 16px 0 24px;
+}
+
+.guest-warning-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+/* Dark mode adjustments for Guest elements */
+[data-theme="dark"] .sidebar-guest-auth {
+    background: var(--bg-elevated);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .btn-guest-login {
+    color: #f8fafc;
+    border-color: #334155;
+}
+
+[data-theme="dark"] .btn-guest-login:hover {
+    background: #1e293b;
+}
+
+[data-theme="dark"] .guest-welcome-banner {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(79, 70, 229, 0.08) 100%);
+    border-color: rgba(99, 102, 241, 0.3);
+}
+
+[data-theme="dark"] .guest-banner-content {
+    color: #f1f5f9;
+}
+
+[data-theme="dark"] .guest-banner-login-btn {
+    background: #1e293b;
+    border-color: #334155;
+    color: #f8fafc;
+}
+
+[data-theme="dark"] .guest-banner-login-btn:hover {
+    background: #334155;
+}
+
+[data-theme="dark"] .guest-prompt-card {
+    background: var(--bg-card);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .auth-close-btn {
+    background: #334155;
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .auth-close-btn:hover {
+    background: #475569;
+    color: #f8fafc;
+}
+
+

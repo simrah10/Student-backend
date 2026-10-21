@@ -179,6 +179,14 @@ let tasks = [];
 let currentUser = null;
 let currentAuthMode = "login"; // "login" | "signup" | "forgot" | "reset" | "verify"
 let editingTaskId = null;
+let pendingGuestAuthMode = "login";
+
+/**
+ * Check if the current user has an active authenticated session
+ */
+function isAuthenticated() {
+    return Boolean(currentUser && localStorage.getItem("studentflow_token"));
+}
 
 // OTP Verification State
 let pendingVerificationEmail = "";
@@ -320,11 +328,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     const resetTokenParam = getResetTokenFromUrl();
 
     if (resetTokenParam) {
-        switchAuthMode("reset");
+        showAuthScreen("reset");
         const tokenInput = document.getElementById("resetTokenInput");
         if (tokenInput) tokenInput.value = resetTokenParam;
         const resetTokenGroup = document.getElementById("resetTokenGroup");
         if (resetTokenGroup) resetTokenGroup.style.display = "none";
+        setupNavigationListeners();
         return;
     }
 
@@ -333,14 +342,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (token) {
         await verifyAndRestoreSession(token);
     } else {
-        const pendingEmail = (function() {
-            try { return sessionStorage.getItem("studentflow_pending_verify_email") || ""; } catch (_) { return ""; }
-        })();
-        if (pendingEmail) {
-            showAuthScreen("verify", pendingEmail);
-        } else {
-            showAuthScreen("login");
-        }
+        // Guest mode default: open dashboard immediately without login screen
+        currentUser = null;
+        tasks = [];
+        showDashboardScreen();
+        updateAuthUI();
+        updateDashboard();
+        updateStatistics(null);
     }
 
     // 3. Bind navigation buttons
@@ -357,11 +365,12 @@ async function verifyAndRestoreSession(token) {
         currentUser = res.data.user;
         localStorage.setItem("studentflow_user", JSON.stringify(currentUser));
         showDashboardScreen();
+        updateAuthUI();
         await loadUserTasks();
         await loadUserProfile(false);
         await loadTaskStats();
     } else if (res.status === 401) {
-        // Token expired or invalid
+        // Token expired or invalid -> Fall back to Guest mode gracefully
         handleLogout(false);
     } else {
         console.warn("Could not reach auth server, checking local session cache:", res.error);
@@ -370,12 +379,19 @@ async function verifyAndRestoreSession(token) {
             try {
                 currentUser = JSON.parse(cachedUser);
                 showDashboardScreen();
+                updateAuthUI();
                 await loadUserTasks();
             } catch (_) {
                 handleLogout(false);
             }
         } else {
-            showAuthScreen();
+            // Cannot reach auth server and no valid cache -> Fall back to Guest mode
+            currentUser = null;
+            tasks = [];
+            showDashboardScreen();
+            updateAuthUI();
+            updateDashboard();
+            updateStatistics(null);
         }
     }
 }
@@ -425,10 +441,12 @@ async function handleLogin(event) {
             localStorage.setItem("studentflow_token", data.token);
             localStorage.setItem("studentflow_user", JSON.stringify(data.user));
             currentUser = data.user;
+            tasks = []; // Clear in-memory guest tasks before loading user tasks
 
             showAuthAlert("Login successful! Redirecting...", "success");
             setTimeout(async () => {
                 showDashboardScreen();
+                updateAuthUI();
                 await loadUserTasks();
                 await loadUserProfile(false);
                 await loadTaskStats();
@@ -496,10 +514,12 @@ async function handleSignup(event) {
                 localStorage.setItem("studentflow_token", data.token);
                 localStorage.setItem("studentflow_user", JSON.stringify(data.user));
                 currentUser = data.user;
+                tasks = []; // Clear in-memory guest tasks before loading user tasks
 
                 showAuthAlert("Account created successfully! Loading your dashboard...", "success");
                 setTimeout(async () => {
                     showDashboardScreen();
+                    updateAuthUI();
                     await loadUserTasks();
                     await loadUserProfile(false);
                     await loadTaskStats();
@@ -573,11 +593,13 @@ async function handleVerifyEmail(event) {
             localStorage.setItem("studentflow_token", data.token);
             localStorage.setItem("studentflow_user", JSON.stringify(data.user));
             currentUser = data.user;
+            tasks = []; // Clear in-memory guest tasks before loading user tasks
 
             showAuthAlert("Email verified successfully! Loading your dashboard...", "success");
 
             setTimeout(async () => {
                 showDashboardScreen();
+                updateAuthUI();
                 await loadUserTasks();
                 await loadUserProfile(false);
                 await loadTaskStats();
@@ -989,6 +1011,8 @@ async function handleLogout(callBackend = true) {
     pendingVerificationEmail = "";
     currentUser = null;
     tasks = [];
+    editingTaskId = null;
+    latestServerStats = null;
 
     // Stop active timers
     if (otpExpiryInterval) {
@@ -1007,7 +1031,12 @@ async function handleLogout(callBackend = true) {
     clearForm();
     clearTaskView();
 
-    showAuthScreen("login");
+    // Return to Guest Dashboard cleanly
+    showDashboardScreen();
+    updateAuthUI();
+    refreshActiveView("dashboard");
+    updateDashboard();
+    updateStatistics(null);
 }
 
 // ============================================================
@@ -1118,23 +1147,111 @@ function switchAuthMode(mode, email = "") {
 }
 
 function showAuthScreen(defaultMode = "login", email = "") {
-    document.getElementById("authScreen").style.display = "flex";
-    document.getElementById("mainApp").style.display = "none";
+    const authScreen = document.getElementById("authScreen");
+    if (authScreen) authScreen.style.display = "flex";
     switchAuthMode(defaultMode, email);
+}
+
+function closeAuthModal() {
+    const authScreen = document.getElementById("authScreen");
+    const mainApp = document.getElementById("mainApp");
+    if (authScreen) authScreen.style.display = "none";
+    if (mainApp) mainApp.style.display = "flex";
+    clearAuthAlert();
+    updateAuthUI();
 }
 
 function showDashboardScreen() {
     if (!currentUser) {
         const cached = localStorage.getItem("studentflow_user");
-        if (cached) {
+        if (cached && localStorage.getItem("studentflow_token")) {
             try { currentUser = JSON.parse(cached); } catch (_) {}
         }
     }
-    document.getElementById("authScreen").style.display = "none";
-    document.getElementById("mainApp").style.display = "flex";
-    updateUserProfileUI();
+    const authScreen = document.getElementById("authScreen");
+    const mainApp = document.getElementById("mainApp");
+    if (authScreen) authScreen.style.display = "none";
+    if (mainApp) mainApp.style.display = "flex";
+
+    updateAuthUI();
     const route = getRouteFromLocation();
     navigateTo(route, false);
+}
+
+/**
+ * Prompt Guest Auth: if guest tasks exist, display the required warning modal
+ */
+function promptGuestAuth(mode = "login") {
+    pendingGuestAuthMode = mode;
+    if (!isAuthenticated() && tasks.length > 0) {
+        openGuestWarningModal();
+    } else {
+        showAuthScreen(mode);
+    }
+}
+
+function openGuestWarningModal() {
+    const overlay = document.getElementById("guestWarningModalOverlay");
+    if (overlay) overlay.style.display = "flex";
+}
+
+function closeGuestWarningModal() {
+    const overlay = document.getElementById("guestWarningModalOverlay");
+    if (overlay) overlay.style.display = "none";
+}
+
+function handleGuestWarningBackdropClick(event) {
+    if (event.target && event.target.id === "guestWarningModalOverlay") {
+        closeGuestWarningModal();
+    }
+}
+
+function confirmGuestAuthTransition() {
+    // Clear temporary guest tasks from application memory
+    tasks = [];
+    editingTaskId = null;
+    closeGuestWarningModal();
+    showAuthScreen(pendingGuestAuthMode);
+}
+
+/**
+ * Synchronize UI elements based on guest vs authenticated state
+ */
+function updateAuthUI() {
+    const isAuth = isAuthenticated();
+
+    // Topbar controls
+    const topbarGuest = document.getElementById("topbarGuestAuth");
+    const topbarUser = document.getElementById("topbarUserAuth");
+    if (topbarGuest) topbarGuest.style.display = isAuth ? "none" : "flex";
+    if (topbarUser) topbarUser.style.display = isAuth ? "flex" : "none";
+
+    // Sidebar controls
+    const sidebarGuest = document.getElementById("sidebarGuestAuth");
+    const sidebarUser = document.getElementById("sidebarUserAuth");
+    if (sidebarGuest) sidebarGuest.style.display = isAuth ? "none" : "block";
+    if (sidebarUser) sidebarUser.style.display = isAuth ? "block" : "none";
+
+    // Guest Welcome Banner on Dashboard
+    const guestBanner = document.getElementById("guestDashboardBanner");
+    if (guestBanner) guestBanner.style.display = isAuth ? "none" : "flex";
+
+    // Profile Page (Guest Prompt vs Authenticated Form)
+    const guestProfilePrompt = document.getElementById("guestProfilePrompt");
+    const profileMainContent = document.getElementById("profileMainContent");
+    if (guestProfilePrompt && profileMainContent) {
+        if (isAuth) {
+            guestProfilePrompt.style.display = "none";
+            profileMainContent.style.display = "block";
+        } else {
+            guestProfilePrompt.style.display = "flex";
+            profileMainContent.style.display = "none";
+        }
+    }
+
+    if (isAuth) {
+        updateUserProfileUI();
+    }
 }
 
 function togglePasswordVisibility(inputId, toggleBtn) {
@@ -1228,6 +1345,14 @@ function updateUserProfileUI() {
  * Load tasks for the current user from backend
  */
 async function loadUserTasks() {
+    if (!isAuthenticated()) {
+        // In Guest Mode: strictly in-memory tasks, no API calls or persistent storage
+        refreshActiveView(currentRoute);
+        updateDashboard();
+        updateStatistics(null);
+        return;
+    }
+
     const listContainers = ["taskList", "pendingTaskList", "completedTaskList", "overdueTaskList", "dashboardRecentList"];
     if (tasks.length === 0) {
         listContainers.forEach(id => {
@@ -1252,13 +1377,17 @@ async function loadUserTasks() {
             saveTasksLocal();
         } else if (res.status !== 401) {
             // Fallback to local storage cache for this user if network issue
-            const cached = localStorage.getItem(`tasks_${currentUser?.id || "guest"}`);
-            tasks = cached ? JSON.parse(cached) : [];
+            if (currentUser && currentUser.id) {
+                const cached = localStorage.getItem(`tasks_${currentUser.id}`);
+                tasks = cached ? JSON.parse(cached) : [];
+            }
         }
     } catch (err) {
         console.warn("Could not load tasks from API, using cached data:", err.message);
-        const cached = localStorage.getItem(`tasks_${currentUser?.id || "guest"}`);
-        tasks = cached ? JSON.parse(cached) : [];
+        if (currentUser && currentUser.id) {
+            const cached = localStorage.getItem(`tasks_${currentUser.id}`);
+            tasks = cached ? JSON.parse(cached) : [];
+        }
     }
 
     refreshActiveView(currentRoute);
@@ -1266,10 +1395,10 @@ async function loadUserTasks() {
 }
 
 /**
- * Save tasks locally per-user for caching
+ * Save tasks locally per-user for caching (authenticated users only)
  */
 function saveTasksLocal() {
-    if (currentUser) {
+    if (isAuthenticated() && currentUser && currentUser.id) {
         localStorage.setItem(`tasks_${currentUser.id}`, JSON.stringify(tasks));
     }
 }
@@ -1293,6 +1422,52 @@ async function addTask() {
     if (saveBtn && saveBtn.disabled) return;
     setBtnLoading(saveBtn, true, editingTaskId ? "Updating..." : "Saving...");
 
+    // GUEST MODE: In-memory task management without API calls or DB persistence
+    if (!isAuthenticated()) {
+        try {
+            if (editingTaskId) {
+                const taskIndex = tasks.findIndex(t => t.id === editingTaskId || t._id === editingTaskId);
+                if (taskIndex !== -1) {
+                    tasks[taskIndex] = {
+                        ...tasks[taskIndex],
+                        name: taskName,
+                        subject: subject,
+                        category: category || "General",
+                        priority: Number(priority) || 1,
+                        dueDate: dueDate
+                    };
+                }
+                editingTaskId = null;
+                document.getElementById("formHeading").textContent = "Add New Task";
+                document.getElementById("saveTaskBtn").textContent = "Add Task";
+                clearForm();
+                refreshActiveView(currentRoute);
+                updateDashboard();
+                updateStatistics(null);
+            } else {
+                const guestTask = {
+                    id: "guest_" + Date.now() + "_" + Math.random().toString(36).substr(2, 7),
+                    name: taskName,
+                    subject: subject,
+                    category: category || "General",
+                    priority: Number(priority) || 1,
+                    dueDate: dueDate,
+                    completed: false,
+                    createdAt: new Date().toISOString()
+                };
+                tasks.unshift(guestTask);
+                clearForm();
+                refreshActiveView(currentRoute);
+                updateDashboard();
+                updateStatistics(null);
+            }
+        } finally {
+            setBtnLoading(saveBtn, false, editingTaskId ? "Update Task" : "Add Task");
+        }
+        return;
+    }
+
+    // AUTHENTICATED MODE: Persisted via backend REST API
     const taskPayload = {
         name: taskName,
         subject: subject,
@@ -1354,6 +1529,15 @@ async function completeTask(id) {
     const task = tasks.find(t => t.id === id || t._id === id);
     if (!task) return;
 
+    // GUEST MODE: In-memory completion toggle
+    if (!isAuthenticated()) {
+        task.completed = !task.completed;
+        refreshActiveView(currentRoute);
+        updateDashboard();
+        updateStatistics(null);
+        return;
+    }
+
     // Optimistically toggle
     const previousCompleted = task.completed;
     task.completed = !previousCompleted;
@@ -1413,6 +1597,15 @@ function editTask(id) {
 async function deleteTask(id) {
     const confirmDelete = confirm("Are you sure you want to delete this task?");
     if (!confirmDelete) return;
+
+    // GUEST MODE: In-memory deletion
+    if (!isAuthenticated()) {
+        tasks = tasks.filter(t => t.id !== id && t._id !== id);
+        refreshActiveView(currentRoute);
+        updateDashboard();
+        updateStatistics(null);
+        return;
+    }
 
     const previousTasks = [...tasks];
     tasks = tasks.filter(t => t.id !== id && t._id !== id);
@@ -1639,6 +1832,11 @@ let latestServerStats = null;
  * Fetch Authoritative Task Statistics from Backend GET /api/tasks/stats
  */
 async function loadTaskStats() {
+    if (!isAuthenticated()) {
+        updateStatistics(null);
+        return null;
+    }
+
     const today = new Date().toISOString().split("T")[0];
     try {
         const res = await apiRequest(`/tasks/stats?today=${today}`);
@@ -1999,12 +2197,17 @@ function refreshActiveView(route = currentRoute) {
 
     if (route === "dashboard") {
         renderDashboardRecentTasks();
-        if (getAuthToken()) {
+        if (isAuthenticated()) {
             loadTaskStats();
+        } else {
+            updateDashboard();
+            updateStatistics(null);
         }
     } else if (route === "statistics") {
-        if (getAuthToken()) {
+        if (isAuthenticated()) {
             loadTaskStats();
+        } else {
+            updateStatistics(null);
         }
     } else if (route === "tasks") {
         renderTaskList("all", "searchInput", "sortSelect", "taskList");
@@ -2121,10 +2324,6 @@ function updateTopbarForRoute(route) {
  * Handle browser routing on popstate / hashchange
  */
 function handleRouting() {
-    if (!currentUser && !localStorage.getItem("studentflow_token")) {
-        return;
-    }
-
     const route = getRouteFromLocation();
     navigateTo(route, false);
 }
@@ -2383,6 +2582,11 @@ function populateProfileFields(user) {
 async function loadUserProfile(forceFetch = true) {
     // Sync theme buttons and indicators on Profile view
     syncThemeUI(getStoredTheme());
+
+    if (!isAuthenticated()) {
+        updateAuthUI();
+        return;
+    }
 
     const token = localStorage.getItem("studentflow_token");
     if (!token) return;
@@ -3014,12 +3218,16 @@ async function handleDeleteAccountSubmit() {
     }
 }
 
-// Global ESC key listener to close Delete Account modal if open
+// Global ESC key listener to close Delete Account modal or Guest Warning modal if open
 window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
-        const modal = document.getElementById("deleteAccountModalOverlay");
-        if (modal && modal.style.display !== "none" && !isDeletingAccount) {
+        const deleteModal = document.getElementById("deleteAccountModalOverlay");
+        if (deleteModal && deleteModal.style.display !== "none" && !isDeletingAccount) {
             closeDeleteAccountModal();
+        }
+        const guestWarning = document.getElementById("guestWarningModalOverlay");
+        if (guestWarning && guestWarning.style.display !== "none") {
+            closeGuestWarningModal();
         }
     }
 });

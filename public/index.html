@@ -25,9 +25,12 @@
 
 <body>
 
-    <!-- AUTHENTICATION SCREEN (Shown when user is not authenticated) -->
-    <div id="authScreen" class="auth-screen">
+    <!-- AUTHENTICATION SCREEN (Shown when user requests login/signup) -->
+    <div id="authScreen" class="auth-screen" style="display: none;">
         <div class="auth-card">
+            <!-- Close Button to return to Guest Dashboard -->
+            <button type="button" class="auth-close-btn" id="authCloseBtn" onclick="closeAuthModal()" aria-label="Close Authentication Screen" title="Close">✕</button>
+
             <!-- Brand Logo -->
             <div class="auth-header">
                 <div class="auth-logo">
@@ -217,11 +220,15 @@
                 </div>
             </form>
 
+            <div class="auth-guest-link-row">
+                <button type="button" class="auth-guest-cancel-btn" onclick="closeAuthModal()">← Continue as Guest</button>
+            </div>
+
         </div>
     </div>
 
-    <!-- PROTECTED STUDENTFLOW DASHBOARD (Only visible when authenticated) -->
-    <div class="app" id="mainApp" style="display: none;">
+    <!-- STUDENTFLOW DASHBOARD (Accessible to guests and authenticated users) -->
+    <div class="app" id="mainApp">
 
         <!-- Sidebar -->
         <aside class="sidebar" id="sidebarDrawer">
@@ -274,23 +281,40 @@
                 </a>
             </nav>
 
-            <!-- Authenticated User Sidebar Badge -->
+            <!-- Sidebar User & Guest Sections -->
             <div class="sidebar-user-section">
-                <div class="user-profile-badge" onclick="navigateTo('profile')" title="View and Edit Profile" role="button" tabindex="0">
-                    <div id="sidebarUserInitials" class="user-initials">S</div>
-                    <div class="user-badge-details">
-                        <span id="sidebarUserName" class="user-badge-name">Student</span>
-                        <span id="sidebarUserEmail" class="user-badge-email">student@university.edu</span>
+                <!-- Shown when Authenticated -->
+                <div id="sidebarUserAuth" class="sidebar-user-auth" style="display: none;">
+                    <div class="user-profile-badge" onclick="navigateTo('profile')" title="View and Edit Profile" role="button" tabindex="0">
+                        <div id="sidebarUserInitials" class="user-initials">S</div>
+                        <div class="user-badge-details">
+                            <span id="sidebarUserName" class="user-badge-name">Student</span>
+                            <span id="sidebarUserEmail" class="user-badge-email">student@university.edu</span>
+                        </div>
+                    </div>
+                    <button type="button" class="logout-btn" onclick="handleLogout()">
+                        <svg class="logout-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                        <span>Log Out</span>
+                    </button>
+                </div>
+                <!-- Shown when Guest -->
+                <div id="sidebarGuestAuth" class="sidebar-guest-auth">
+                    <div class="guest-sidebar-badge">
+                        <div class="guest-avatar-icon">👤</div>
+                        <div class="guest-badge-details">
+                            <span class="guest-badge-name">Guest Mode</span>
+                            <span class="guest-badge-hint">Exploring StudentFlow</span>
+                        </div>
+                    </div>
+                    <div class="guest-sidebar-actions">
+                        <button type="button" class="sidebar-guest-btn login-btn" onclick="promptGuestAuth('login')">Log In</button>
+                        <button type="button" class="sidebar-guest-btn signup-btn" onclick="promptGuestAuth('signup')">Sign Up</button>
                     </div>
                 </div>
-                <button type="button" class="logout-btn" onclick="handleLogout()">
-                    <svg class="logout-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                        <polyline points="16 17 21 12 16 7"></polyline>
-                        <line x1="21" y1="12" x2="9" y2="12"></line>
-                    </svg>
-                    <span>Log Out</span>
-                </button>
             </div>
 
             <div class="sidebar-bottom">
@@ -321,20 +345,34 @@
                 </div>
 
                 <div class="topbar-actions">
-                    <div class="topbar-user-badge" onclick="navigateTo('profile')" title="View and Edit Profile" role="button" tabindex="0">
-                        <div id="topbarUserInitials" class="user-initials">S</div>
-                        <div class="topbar-user-text">
-                            <strong id="topbarUserName">Student</strong>
-                        </div>
+                    <!-- Guest Auth Buttons (Shown when not authenticated) -->
+                    <div id="topbarGuestAuth" class="topbar-guest-auth">
+                        <button type="button" class="btn-guest-login" onclick="promptGuestAuth('login')">
+                            Log In
+                        </button>
+                        <button type="button" class="btn-guest-signup" onclick="promptGuestAuth('signup')">
+                            Sign Up
+                        </button>
                     </div>
-                    <button class="logout-btn-top" onclick="handleLogout()" title="Log out">
-                        <svg class="logout-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                            <polyline points="16 17 21 12 16 7"></polyline>
-                            <line x1="21" y1="12" x2="9" y2="12"></line>
-                        </svg>
-                        <span>Log Out</span>
-                    </button>
+
+                    <!-- Authenticated User Controls (Shown when authenticated) -->
+                    <div id="topbarUserAuth" class="topbar-user-auth" style="display: none;">
+                        <div class="topbar-user-badge" onclick="navigateTo('profile')" title="View and Edit Profile" role="button" tabindex="0">
+                            <div id="topbarUserInitials" class="user-initials">S</div>
+                            <div class="topbar-user-text">
+                                <strong id="topbarUserName">Student</strong>
+                            </div>
+                        </div>
+                        <button class="logout-btn-top" onclick="handleLogout()" title="Log out">
+                            <svg class="logout-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                                <polyline points="16 17 21 12 16 7"></polyline>
+                                <line x1="21" y1="12" x2="9" y2="12"></line>
+                            </svg>
+                            <span>Log Out</span>
+                        </button>
+                    </div>
+
                     <button class="add-main-btn" onclick="openTaskForm()">
                         + Add Task
                     </button>
@@ -344,6 +382,20 @@
 
             <!-- ================= VIEW 1: DASHBOARD ================= -->
             <div class="view-page" id="view-dashboard">
+
+                <!-- Guest Welcome Banner (Shown when not authenticated) -->
+                <div id="guestDashboardBanner" class="guest-welcome-banner">
+                    <div class="guest-banner-content">
+                        <span class="guest-banner-icon">✨</span>
+                        <div>
+                            <strong>Guest Mode:</strong> You can explore and manage tasks locally. Create a free account to save your tasks permanently and sync across devices.
+                        </div>
+                    </div>
+                    <div class="guest-banner-buttons">
+                        <button type="button" class="guest-banner-login-btn" onclick="promptGuestAuth('login')">Log In</button>
+                        <button type="button" class="guest-banner-signup-btn" onclick="promptGuestAuth('signup')">Sign Up</button>
+                    </div>
+                </div>
 
                 <!-- Dashboard Cards -->
                 <section class="dashboard">
@@ -729,8 +781,24 @@
             <!-- ================= VIEW 7: USER PROFILE ================= -->
             <div class="view-page" id="view-profile" style="display: none;">
 
-                <!-- Profile Header Card -->
-                <section class="profile-header-card">
+                <!-- Guest Profile Prompt (Shown when not authenticated) -->
+                <div id="guestProfilePrompt" class="guest-profile-prompt" style="display: none;">
+                    <div class="guest-prompt-card">
+                        <span class="guest-prompt-icon">👤</span>
+                        <h3>Personal Account Required</h3>
+                        <p>Your profile information, academic records, and security settings are saved to your authenticated account. Log in or create a free account to customize your profile.</p>
+                        <div class="guest-prompt-actions">
+                            <button type="button" class="btn-guest-login" onclick="promptGuestAuth('login')">Log In</button>
+                            <button type="button" class="btn-guest-signup" onclick="promptGuestAuth('signup')">Sign Up</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Authenticated User Profile Content -->
+                <div id="profileMainContent">
+
+                    <!-- Profile Header Card -->
+                    <section class="profile-header-card">
                     <div class="profile-header-main">
                         <div class="profile-avatar-wrapper">
                             <div class="profile-avatar-preview" id="profileAvatarPreview">
@@ -1018,7 +1086,9 @@
                     </div>
                 </section>
 
-            </div>
+                </div> <!-- End #profileMainContent -->
+
+            </div> <!-- End #view-profile -->
 
         </main>
 
@@ -1066,6 +1136,26 @@
                 <button type="button" class="danger-btn" id="confirmDeleteAccountBtn" onclick="handleDeleteAccountSubmit()" disabled>
                     Permanently Delete
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= MODAL: GUEST TASK WARNING ================= -->
+    <div id="guestWarningModalOverlay" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="guestWarningTitle" onclick="handleGuestWarningBackdropClick(event)">
+        <div class="modal-box guest-warning-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <div class="modal-title-row">
+                    <span class="warning-icon-circle">⚠️</span>
+                    <h2 id="guestWarningTitle">Guest Tasks Notice</h2>
+                </div>
+                <button type="button" class="modal-close-btn" onclick="closeGuestWarningModal()" aria-label="Close dialog">✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="guest-warning-text">Your guest tasks are temporary and will not be transferred to your account. Continue?</p>
+            </div>
+            <div class="modal-footer guest-warning-footer">
+                <button type="button" class="secondary-btn" onclick="closeGuestWarningModal()">Cancel</button>
+                <button type="button" class="primary-btn" id="guestWarningContinueBtn" onclick="confirmGuestAuthTransition()">Continue</button>
             </div>
         </div>
     </div>
