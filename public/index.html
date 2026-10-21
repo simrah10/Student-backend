@@ -168,6 +168,55 @@
                 </div>
             </form>
 
+            <!-- 5. EMAIL OTP VERIFICATION FORM -->
+            <form id="verifyEmailForm" style="display: none;" onsubmit="handleVerifyEmail(event)">
+                <div class="verify-email-banner">
+                    <div class="verify-badge">
+                        <span class="verify-badge-icon">✉️</span>
+                    </div>
+                    <p class="verify-desc">We sent a 6-digit verification code to:</p>
+                    <p class="verify-target-email" id="verifyTargetEmail">student@university.edu</p>
+                </div>
+
+                <div class="input-group">
+                    <label class="otp-input-label" for="otpDigit1">Enter 6-Digit Code</label>
+                    <div class="otp-inputs-grid" id="otpInputsGrid">
+                        <input type="text" class="otp-digit" id="otpDigit1" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" required aria-label="Digit 1">
+                        <input type="text" class="otp-digit" id="otpDigit2" maxlength="1" inputmode="numeric" pattern="[0-9]*" required aria-label="Digit 2">
+                        <input type="text" class="otp-digit" id="otpDigit3" maxlength="1" inputmode="numeric" pattern="[0-9]*" required aria-label="Digit 3">
+                        <input type="text" class="otp-digit" id="otpDigit4" maxlength="1" inputmode="numeric" pattern="[0-9]*" required aria-label="Digit 4">
+                        <input type="text" class="otp-digit" id="otpDigit5" maxlength="1" inputmode="numeric" pattern="[0-9]*" required aria-label="Digit 5">
+                        <input type="text" class="otp-digit" id="otpDigit6" maxlength="1" inputmode="numeric" pattern="[0-9]*" required aria-label="Digit 6">
+                    </div>
+                </div>
+
+                <!-- 5-minute Countdown Timer -->
+                <div class="otp-timer-box">
+                    <div class="otp-timer-main">
+                        <span class="otp-timer-icon">⏱️</span>
+                        <span id="otpExpiryTimer" class="otp-timer-text">Code expires in 05:00</span>
+                    </div>
+                    <span class="otp-timer-note">(Frontend display timer — backend expiration is authoritative)</span>
+                </div>
+
+                <!-- Verify Button -->
+                <button type="submit" class="auth-submit-btn" id="verifyOtpSubmitBtn">
+                    <span>Verify Email</span>
+                </button>
+
+                <!-- Resend Controls with Cooldown -->
+                <div class="otp-resend-container">
+                    <span class="otp-resend-text">Didn't receive the code?</span>
+                    <button type="button" class="resend-otp-btn" id="resendOtpBtn" onclick="handleResendOtp()">
+                        <span>Resend Code</span>
+                    </button>
+                </div>
+
+                <div class="auth-footer">
+                    <button type="button" class="auth-toggle-link" onclick="switchAuthMode('login')">← Back to Log In</button>
+                </div>
+            </form>
+
         </div>
     </div>
 

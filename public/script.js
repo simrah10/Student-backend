@@ -1,4 +1,4 @@
-﻿/**
+/**
  * StudentFlow - Student Productivity Management System
  * Complete Email/Password Authentication & User-Specific Task Persistence
  */
@@ -64,8 +64,15 @@ const API_BASE_URL = getApiBaseUrl();
 // Application State
 let tasks = [];
 let currentUser = null;
-let currentAuthMode = "login"; // "login" | "signup" | "forgot" | "reset"
+let currentAuthMode = "login"; // "login" | "signup" | "forgot" | "reset" | "verify"
 let editingTaskId = null;
+
+// OTP Verification State
+let pendingVerificationEmail = "";
+let otpExpiryInterval = null;
+let otpExpirySeconds = 300; // 5 minutes
+let resendCooldownInterval = null;
+let resendCooldownSeconds = 0;
 
 // Routing State
 const VALID_ROUTES = ["dashboard", "tasks", "pending", "completed", "overdue", "statistics", "profile"];
@@ -192,8 +199,9 @@ function getResetTokenFromUrl() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-    // 0. Initialize visual theme immediately
+    // 0. Initialize visual theme and OTP input listeners immediately
     initAppTheme();
+    initOtpInputListeners();
 
     // 1. Check for URL parameters (e.g. ?token=xxxx from emailed reset link)
     const resetTokenParam = getResetTokenFromUrl();
@@ -212,7 +220,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (token) {
         await verifyAndRestoreSession(token);
     } else {
-        showAuthScreen();
+        const pendingEmail = (function() {
+            try { return sessionStorage.getItem("studentflow_pending_verify_email") || ""; } catch (_) { return ""; }
+        })();
+        if (pendingEmail) {
+            showAuthScreen("verify", pendingEmail);
+        } else {
+            showAuthScreen("login");
+        }
     }
 
     // 3. Bind navigation buttons
@@ -282,6 +297,24 @@ async function handleLogin(event) {
 
         const data = await res.json();
 
+        // 1. Unverified Email Check (HTTP 403 or requiresVerification flag)
+        if (res.status === 403 || data.requiresVerification) {
+            const targetEmail = data.email || email;
+            pendingVerificationEmail = targetEmail;
+
+            const noticeHtml = `
+                <div class="auth-unverified-notice">
+                    <span><strong>Email Not Verified:</strong> ${escapeHtml(data.message || "Please verify your email address before logging in.")}</span>
+                    <button type="button" class="verify-now-btn" onclick="openVerificationScreen('${escapeHtml(targetEmail)}')">
+                        Verify Email Now →
+                    </button>
+                </div>
+            `;
+            showAuthAlert(noticeHtml, "error", true);
+            return;
+        }
+
+        // 2. Verified Login Success
         if (res.ok && data.success) {
             localStorage.setItem("studentflow_token", data.token);
             localStorage.setItem("studentflow_user", JSON.stringify(data.user));
@@ -303,7 +336,7 @@ async function handleLogin(event) {
 }
 
 /**
- * Handle Sign Up Submission
+ * Handle Sign Up Submission (Transitions to OTP Verification)
  */
 async function handleSignup(event) {
     event.preventDefault();
@@ -319,8 +352,8 @@ async function handleSignup(event) {
         return;
     }
 
-    if (password.length < 6) {
-        showAuthAlert("Password must be at least 6 characters long.", "error");
+    if (password.length < 8) {
+        showAuthAlert("Password must be at least 8 characters long.", "error");
         return;
     }
 
@@ -342,15 +375,26 @@ async function handleSignup(event) {
         const data = await res.json();
 
         if (res.ok && data.success) {
-            localStorage.setItem("studentflow_token", data.token);
-            localStorage.setItem("studentflow_user", JSON.stringify(data.user));
-            currentUser = data.user;
+            // Backend OTP Verification Flow (no JWT issued on signup alone)
+            if (data.requiresVerification) {
+                pendingVerificationEmail = email;
+                switchAuthMode("verify", email);
+                showAuthAlert(
+                    data.message || "Account created! A 6-digit verification code has been sent to your email.",
+                    "success"
+                );
+            } else if (data.token) {
+                // Fallback for direct token responses
+                localStorage.setItem("studentflow_token", data.token);
+                localStorage.setItem("studentflow_user", JSON.stringify(data.user));
+                currentUser = data.user;
 
-            showAuthAlert("Account created successfully! Loading your dashboard...", "success");
-            setTimeout(async () => {
-                showDashboardScreen();
-                await loadUserTasks();
-            }, 500);
+                showAuthAlert("Account created successfully! Loading your dashboard...", "success");
+                setTimeout(async () => {
+                    showDashboardScreen();
+                    await loadUserTasks();
+                }, 400);
+            }
         } else {
             showAuthAlert(data.message || "Registration failed", "error");
         }
@@ -358,6 +402,332 @@ async function handleSignup(event) {
         showAuthAlert(`Network error: Could not reach backend server`, "error");
     } finally {
         setBtnLoading(submitBtn, false, "Create Account");
+    }
+}
+
+/**
+ * Handle 6-Digit Email OTP Verification
+ */
+async function handleVerifyEmail(event) {
+    event.preventDefault();
+
+    const otp = getOtpCode();
+    const submitBtn = document.getElementById("verifyOtpSubmitBtn");
+
+    if (!pendingVerificationEmail) {
+        showAuthAlert("Email address is missing. Please return to log in or sign up.", "error");
+        return;
+    }
+
+    if (!otp || otp.length !== 6 || !/^\d{6}$/.test(otp)) {
+        showAuthAlert("Please enter all 6 digits of your verification code.", "error");
+        for (let i = 1; i <= 6; i++) {
+            const input = document.getElementById(`otpDigit${i}`);
+            if (input && !input.value) {
+                input.focus();
+                break;
+            }
+        }
+        return;
+    }
+
+    setBtnLoading(submitBtn, true, "Verifying...");
+    clearAuthAlert();
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/auth/verify-email`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                email: pendingVerificationEmail,
+                otp: otp
+            })
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+            // Stop timers
+            if (otpExpiryInterval) {
+                clearInterval(otpExpiryInterval);
+                otpExpiryInterval = null;
+            }
+            if (resendCooldownInterval) {
+                clearInterval(resendCooldownInterval);
+                resendCooldownInterval = null;
+            }
+
+            try { sessionStorage.removeItem("studentflow_pending_verify_email"); } catch (_) {}
+
+            // Save authenticated session token & user details
+            localStorage.setItem("studentflow_token", data.token);
+            localStorage.setItem("studentflow_user", JSON.stringify(data.user));
+            currentUser = data.user;
+
+            showAuthAlert("Email verified successfully! Loading your dashboard...", "success");
+
+            setTimeout(async () => {
+                showDashboardScreen();
+                await loadUserTasks();
+            }, 400);
+        } else {
+            showAuthAlert(data.message || "Invalid or expired verification code. Please try again.", "error");
+            clearOtpInputs();
+        }
+    } catch (err) {
+        showAuthAlert("Network error: Could not connect to verification service. Please check your connection and try again.", "error");
+    } finally {
+        setBtnLoading(submitBtn, false, "Verify Email");
+    }
+}
+
+/**
+ * Handle Resend Verification OTP
+ */
+async function handleResendOtp() {
+    if (resendCooldownSeconds > 0) return;
+
+    if (!pendingVerificationEmail) {
+        showAuthAlert("Email address is missing. Please return to log in and sign in again.", "error");
+        return;
+    }
+
+    const resendBtn = document.getElementById("resendOtpBtn");
+    const originalText = resendBtn ? resendBtn.innerHTML : "Resend Code";
+    if (resendBtn) {
+        resendBtn.disabled = true;
+        resendBtn.innerHTML = `<span>Sending code...</span>`;
+    }
+    clearAuthAlert();
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/auth/resend-verification`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: pendingVerificationEmail })
+        });
+
+        const data = await res.json();
+
+        if (res.status === 429) {
+            const waitSec = data.retryAfter || 60;
+            startResendCooldown(waitSec);
+            showAuthAlert(data.message || `Please wait ${waitSec} seconds before requesting another code.`, "error");
+        } else if (res.ok && data.success) {
+            clearOtpInputs();
+            startOtpExpiryTimer(300);
+            startResendCooldown(60);
+            showAuthAlert(data.message || "A new 6-digit verification code has been sent to your email.", "success");
+        } else {
+            showAuthAlert(data.message || "Unable to resend verification code. Please try again later.", "error");
+            if (resendBtn) {
+                resendBtn.disabled = false;
+                resendBtn.innerHTML = originalText;
+            }
+        }
+    } catch (err) {
+        showAuthAlert("Network error: Could not reach authentication server to resend code.", "error");
+        if (resendBtn) {
+            resendBtn.disabled = false;
+            resendBtn.innerHTML = originalText;
+        }
+    }
+}
+
+/**
+ * Open verification screen with specific prefilled email
+ */
+function openVerificationScreen(email) {
+    clearAuthAlert();
+    switchAuthMode("verify", email);
+}
+
+/**
+ * Safe HTML escaping helper
+ */
+function escapeHtml(str) {
+    if (!str) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+/**
+ * 5-Minute OTP Expiry Display Timer
+ */
+function startOtpExpiryTimer(seconds = 300) {
+    if (otpExpiryInterval) {
+        clearInterval(otpExpiryInterval);
+        otpExpiryInterval = null;
+    }
+
+    otpExpirySeconds = seconds;
+    updateExpiryTimerUI();
+
+    otpExpiryInterval = setInterval(() => {
+        otpExpirySeconds--;
+        if (otpExpirySeconds <= 0) {
+            clearInterval(otpExpiryInterval);
+            otpExpiryInterval = null;
+            const timerEl = document.getElementById("otpExpiryTimer");
+            if (timerEl) {
+                timerEl.textContent = "Code expired! Please request a new code.";
+                timerEl.style.color = "#dc2626";
+            }
+            showAuthAlert("Your 6-digit verification code has expired. Please click 'Resend Code' to receive a new code.", "error");
+        } else {
+            updateExpiryTimerUI();
+        }
+    }, 1000);
+}
+
+function updateExpiryTimerUI() {
+    const timerEl = document.getElementById("otpExpiryTimer");
+    if (!timerEl) return;
+    const mins = Math.floor(otpExpirySeconds / 60);
+    const secs = otpExpirySeconds % 60;
+    const formatted = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    timerEl.textContent = `Code expires in ${formatted}`;
+    timerEl.style.color = "";
+}
+
+/**
+ * 60-Second Resend Cooldown Timer
+ */
+function startResendCooldown(seconds = 60) {
+    if (resendCooldownInterval) {
+        clearInterval(resendCooldownInterval);
+        resendCooldownInterval = null;
+    }
+
+    resendCooldownSeconds = seconds;
+    const resendBtn = document.getElementById("resendOtpBtn");
+
+    if (resendCooldownSeconds > 0 && resendBtn) {
+        resendBtn.disabled = true;
+        resendBtn.innerHTML = `<span>Resend Code (${resendCooldownSeconds}s)</span>`;
+    }
+
+    resendCooldownInterval = setInterval(() => {
+        resendCooldownSeconds--;
+        if (resendCooldownSeconds <= 0) {
+            clearInterval(resendCooldownInterval);
+            resendCooldownInterval = null;
+            if (resendBtn) {
+                resendBtn.disabled = false;
+                resendBtn.innerHTML = `<span>Resend Code</span>`;
+            }
+        } else if (resendBtn) {
+            resendBtn.disabled = true;
+            resendBtn.innerHTML = `<span>Resend Code (${resendCooldownSeconds}s)</span>`;
+        }
+    }, 1000);
+}
+
+/**
+ * Collect digits from OTP boxes
+ */
+function getOtpCode() {
+    let code = "";
+    for (let i = 1; i <= 6; i++) {
+        const input = document.getElementById(`otpDigit${i}`);
+        if (input) code += input.value.trim();
+    }
+    return code;
+}
+
+/**
+ * Reset all 6 OTP digit inputs
+ */
+function clearOtpInputs() {
+    for (let i = 1; i <= 6; i++) {
+        const input = document.getElementById(`otpDigit${i}`);
+        if (input) {
+            input.value = "";
+            input.classList.remove("filled");
+        }
+    }
+    const first = document.getElementById("otpDigit1");
+    if (first) {
+        setTimeout(() => first.focus(), 50);
+    }
+}
+
+/**
+ * Bind keyboard, input, and paste listeners to the 6 OTP input boxes
+ */
+function initOtpInputListeners() {
+    for (let i = 1; i <= 6; i++) {
+        const input = document.getElementById(`otpDigit${i}`);
+        if (!input) continue;
+
+        // Strip non-digits and advance focus
+        input.addEventListener("input", (e) => {
+            const val = e.target.value.replace(/\D/g, "");
+            e.target.value = val.slice(0, 1);
+
+            if (e.target.value) {
+                e.target.classList.add("filled");
+                if (i < 6) {
+                    const next = document.getElementById(`otpDigit${i + 1}`);
+                    if (next) next.focus();
+                }
+            } else {
+                e.target.classList.remove("filled");
+            }
+        });
+
+        // Key navigation (backspace and arrows)
+        input.addEventListener("keydown", (e) => {
+            if (e.key === "Backspace") {
+                if (!e.target.value && i > 1) {
+                    const prev = document.getElementById(`otpDigit${i - 1}`);
+                    if (prev) {
+                        prev.focus();
+                        prev.value = "";
+                        prev.classList.remove("filled");
+                    }
+                } else {
+                    e.target.classList.remove("filled");
+                }
+            } else if (e.key === "ArrowLeft" && i > 1) {
+                const prev = document.getElementById(`otpDigit${i - 1}`);
+                if (prev) prev.focus();
+            } else if (e.key === "ArrowRight" && i < 6) {
+                const next = document.getElementById(`otpDigit${i + 1}`);
+                if (next) next.focus();
+            }
+        });
+
+        // 6-digit paste handler
+        input.addEventListener("paste", (e) => {
+            e.preventDefault();
+            const clipboardData = (e.clipboardData || window.clipboardData).getData("text");
+            if (!clipboardData) return;
+
+            const digits = clipboardData.replace(/\D/g, "").slice(0, 6);
+            if (!digits) return;
+
+            for (let j = 0; j < 6; j++) {
+                const digitInput = document.getElementById(`otpDigit${j + 1}`);
+                if (digitInput) {
+                    if (j < digits.length) {
+                        digitInput.value = digits[j];
+                        digitInput.classList.add("filled");
+                    } else {
+                        digitInput.value = "";
+                        digitInput.classList.remove("filled");
+                    }
+                }
+            }
+
+            const focusIndex = Math.min(digits.length + 1, 6);
+            const focusTarget = document.getElementById(`otpDigit${focusIndex}`);
+            if (focusTarget) focusTarget.focus();
+        });
     }
 }
 
@@ -518,7 +888,7 @@ async function handleLogout(callBackend = true) {
 // UI NAVIGATION & FORM VIEW SWITCHING
 // ============================================================
 
-function switchAuthMode(mode) {
+function switchAuthMode(mode, email = "") {
     currentAuthMode = mode;
     clearAuthAlert();
 
@@ -531,57 +901,100 @@ function switchAuthMode(mode) {
     const signupForm = document.getElementById("signupForm");
     const forgotForm = document.getElementById("forgotForm");
     const resetForm = document.getElementById("resetForm");
+    const verifyEmailForm = document.getElementById("verifyEmailForm");
 
     const authTitle = document.getElementById("authTitle");
     const authSubtitle = document.getElementById("authSubtitle");
 
     // Hide all forms
-    loginForm.style.display = "none";
-    signupForm.style.display = "none";
-    forgotForm.style.display = "none";
-    resetForm.style.display = "none";
+    if (loginForm) loginForm.style.display = "none";
+    if (signupForm) signupForm.style.display = "none";
+    if (forgotForm) forgotForm.style.display = "none";
+    if (resetForm) resetForm.style.display = "none";
+    if (verifyEmailForm) verifyEmailForm.style.display = "none";
+
+    // Clean up OTP timers if switching away from verification view
+    if (mode !== "verify") {
+        if (otpExpiryInterval) {
+            clearInterval(otpExpiryInterval);
+            otpExpiryInterval = null;
+        }
+        if (resendCooldownInterval) {
+            clearInterval(resendCooldownInterval);
+            resendCooldownInterval = null;
+        }
+        if (mode === "login" || mode === "signup") {
+            try { sessionStorage.removeItem("studentflow_pending_verify_email"); } catch (_) {}
+            pendingVerificationEmail = "";
+        }
+    }
 
     if (mode === "login") {
-        authTabs.style.display = "flex";
-        loginTabBtn.classList.add("active");
-        signupTabBtn.classList.remove("active");
-        loginForm.style.display = "block";
-        authTitle.textContent = "Welcome to StudentFlow";
-        authSubtitle.textContent = "Sign in to manage your tasks, schedules, and academic progress.";
+        if (authTabs) authTabs.style.display = "flex";
+        if (loginTabBtn) loginTabBtn.classList.add("active");
+        if (signupTabBtn) signupTabBtn.classList.remove("active");
+        if (loginForm) loginForm.style.display = "block";
+        if (authTitle) authTitle.textContent = "Welcome to StudentFlow";
+        if (authSubtitle) authSubtitle.textContent = "Sign in to manage your tasks, schedules, and academic progress.";
     } else if (mode === "signup") {
-        authTabs.style.display = "flex";
-        loginTabBtn.classList.remove("active");
-        signupTabBtn.classList.add("active");
-        signupForm.style.display = "block";
-        authTitle.textContent = "Create an Account";
-        authSubtitle.textContent = "Join StudentFlow to start organizing your academic workflow.";
+        if (authTabs) authTabs.style.display = "flex";
+        if (loginTabBtn) loginTabBtn.classList.remove("active");
+        if (signupTabBtn) signupTabBtn.classList.add("active");
+        if (signupForm) signupForm.style.display = "block";
+        if (authTitle) authTitle.textContent = "Create an Account";
+        if (authSubtitle) authSubtitle.textContent = "Join StudentFlow to start organizing your academic workflow.";
     } else if (mode === "forgot") {
-        authTabs.style.display = "none";
-        forgotForm.style.display = "block";
-        authTitle.textContent = "Reset Password";
-        authSubtitle.textContent = "Enter your email address and we'll send a secure reset link to your inbox.";
+        if (authTabs) authTabs.style.display = "none";
+        if (forgotForm) forgotForm.style.display = "block";
+        if (authTitle) authTitle.textContent = "Reset Password";
+        if (authSubtitle) authSubtitle.textContent = "Enter your email address and we'll send a secure reset link to your inbox.";
     } else if (mode === "reset") {
-        authTabs.style.display = "none";
-        resetForm.style.display = "block";
-        authTitle.textContent = "Create New Password";
+        if (authTabs) authTabs.style.display = "none";
+        if (resetForm) resetForm.style.display = "block";
+        if (authTitle) authTitle.textContent = "Create New Password";
 
         const tokenInput = document.getElementById("resetTokenInput");
         const resetTokenGroup = document.getElementById("resetTokenGroup");
         const hasToken = (tokenInput && tokenInput.value.trim()) || getResetTokenFromUrl();
         if (hasToken) {
             if (resetTokenGroup) resetTokenGroup.style.display = "none";
-            authSubtitle.textContent = "Enter your new password below to restore access.";
+            if (authSubtitle) authSubtitle.textContent = "Enter your new password below to restore access.";
         } else {
             if (resetTokenGroup) resetTokenGroup.style.display = "block";
-            authSubtitle.textContent = "Enter your reset token and your new password to restore access.";
+            if (authSubtitle) authSubtitle.textContent = "Enter your reset token and your new password to restore access.";
+        }
+    } else if (mode === "verify") {
+        if (authTabs) authTabs.style.display = "none";
+        if (verifyEmailForm) verifyEmailForm.style.display = "block";
+        if (authTitle) authTitle.textContent = "Verify Your Email";
+        if (authSubtitle) authSubtitle.textContent = "Enter the 6-digit verification code sent to your email to activate your account.";
+
+        const targetEmail = email || pendingVerificationEmail || (function() {
+            try { return sessionStorage.getItem("studentflow_pending_verify_email") || ""; } catch (_) { return ""; }
+        })();
+
+        if (targetEmail) {
+            pendingVerificationEmail = targetEmail;
+            try { sessionStorage.setItem("studentflow_pending_verify_email", targetEmail); } catch (_) {}
+            const emailEl = document.getElementById("verifyTargetEmail");
+            if (emailEl) emailEl.textContent = targetEmail;
+        }
+
+        clearOtpInputs();
+
+        if (!otpExpiryInterval) {
+            startOtpExpiryTimer(300);
+        }
+        if (resendCooldownSeconds <= 0) {
+            startResendCooldown(60);
         }
     }
 }
 
-function showAuthScreen() {
+function showAuthScreen(defaultMode = "login", email = "") {
     document.getElementById("authScreen").style.display = "flex";
     document.getElementById("mainApp").style.display = "none";
-    switchAuthMode("login");
+    switchAuthMode(defaultMode, email);
 }
 
 function showDashboardScreen() {
@@ -622,15 +1035,21 @@ function setBtnLoading(btn, isLoading, text) {
     }
 }
 
-function showAuthAlert(message, type = "error") {
+function showAuthAlert(message, type = "error", isHtml = false) {
     const alertBox = document.getElementById("authAlert");
-    alertBox.textContent = message;
+    if (!alertBox) return;
+    if (isHtml) {
+        alertBox.innerHTML = message;
+    } else {
+        alertBox.textContent = message;
+    }
     alertBox.className = `auth-alert ${type}`;
     alertBox.style.display = "block";
 }
 
 function clearAuthAlert() {
     const alertBox = document.getElementById("authAlert");
+    if (!alertBox) return;
     alertBox.style.display = "none";
     alertBox.textContent = "";
 }
