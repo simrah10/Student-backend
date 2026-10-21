@@ -590,7 +590,7 @@ const login = async (req, res, next) => {
       return res.status(403).json({
         success: false,
         requiresVerification: true,
-        message: "Please verify your email address before logging in. A 6-digit verification code was sent to your email.",
+        message: "Email not verified. Please verify your email before logging in.",
         email: user.email
       });
     }

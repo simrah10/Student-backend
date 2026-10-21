@@ -413,18 +413,10 @@ async function handleLogin(event) {
 
         // 1. Unverified Email Check (HTTP 403 or requiresVerification flag)
         if (res.status === 403 || data.requiresVerification) {
-            const targetEmail = data.email || email;
-            pendingVerificationEmail = targetEmail;
-
-            const noticeHtml = `
-                <div class="auth-unverified-notice">
-                    <span><strong>Email Not Verified:</strong> ${escapeHtml(data.message || "Please verify your email address before logging in.")}</span>
-                    <button type="button" class="verify-now-btn" onclick="openVerificationScreen('${escapeHtml(targetEmail)}')">
-                        Verify Email Now →
-                    </button>
-                </div>
-            `;
-            showAuthAlert(noticeHtml, "error", true);
+            showAuthAlert(
+                data.message || "Email not verified. Please verify your email before logging in.",
+                "error"
+            );
             return;
         }
 
