@@ -31,27 +31,24 @@ function getApiBaseUrl() {
         return PRODUCTION_API_URL;
     }
 
-    // 3. HTML meta tag configuration
+    // 3. Local development environment (localhost, 127.0.0.1, or file://)
+    const isLocalHost = hostname === "localhost" || hostname === "127.0.0.1" || window.location.protocol === "file:";
+    if (isLocalHost) {
+        if (window.location.port === "5000") {
+            return "/api";
+        }
+        return "http://localhost:5000/api";
+    }
+
+    // 4. HTML meta tag configuration
     const metaTag = document.querySelector('meta[name="api-base-url"]');
     const metaUrl = metaTag ? metaTag.getAttribute("content") : null;
     if (metaUrl && metaUrl.trim()) {
         return metaUrl.trim().replace(/\/+$/, "");
     }
 
-    // 4. Local dev environment (Live Server, Vite, file://, etc.)
-    const isLocalFrontendOnly =
-        window.location.protocol === "file:" ||
-        ((hostname === "localhost" || hostname === "127.0.0.1") &&
-         window.location.port !== "" &&
-         window.location.port !== "5000");
-
-    if (isLocalFrontendOnly) {
-        return "http://localhost:5000/api";
-    }
-
-    // 5. Backend same-origin serving (e.g. Express serving public folder)
-    if (window.location.origin === "https://student-backend-wdxq.onrender.com" ||
-        (hostname === "localhost" && window.location.port === "5000")) {
+    // 5. Backend same-origin serving on Render
+    if (window.location.origin === "https://student-backend-wdxq.onrender.com") {
         return "/api";
     }
 
@@ -60,6 +57,122 @@ function getApiBaseUrl() {
 }
 
 const API_BASE_URL = getApiBaseUrl();
+
+/**
+ * Returns currently stored JWT auth token or null
+ */
+function getAuthToken() {
+    return localStorage.getItem("studentflow_token");
+}
+
+/**
+ * Returns Authorization header with JWT token
+ */
+function getAuthHeaders() {
+    const token = getAuthToken();
+    const headers = { "Content-Type": "application/json" };
+    if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+    }
+    return headers;
+}
+
+/**
+ * Centralized API Request Helper
+ * - Attaches base URL safely
+ * - Adds Authorization and Content-Type headers
+ * - Handles JSON and non-JSON responses safely
+ * - Provides request timeout
+ * - Automatically handles 401 unauthorized sessions
+ * - Distinguishes 403 unverified accounts
+ */
+async function apiRequest(endpoint, options = {}) {
+    const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+    const url = endpoint.startsWith("http://") || endpoint.startsWith("https://")
+        ? endpoint
+        : `${API_BASE_URL}${cleanEndpoint}`;
+
+    const headers = { ...(options.headers || {}) };
+
+    // Format body: auto stringify object unless it is already a string or FormData
+    let body = options.body;
+    if (body && typeof body === "object" && !(body instanceof FormData)) {
+        headers["Content-Type"] = headers["Content-Type"] || "application/json";
+        body = JSON.stringify(body);
+    }
+
+    // Inject Bearer token if not explicitly skipped
+    if (!options.skipAuth) {
+        const token = localStorage.getItem("studentflow_token");
+        if (token && !headers["Authorization"]) {
+            headers["Authorization"] = `Bearer ${token}`;
+        }
+    }
+
+    // 15-second request timeout controller
+    const timeoutMs = options.timeout || 15000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        const res = await fetch(url, {
+            ...options,
+            headers,
+            body,
+            signal: options.signal || controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        // Safe body parsing (handles empty responses and non-JSON errors gracefully)
+        let data = null;
+        const text = await res.text();
+        if (text) {
+            try {
+                data = JSON.parse(text);
+            } catch (_) {
+                data = { message: text };
+            }
+        } else {
+            data = {};
+        }
+
+        // Automatic 401 handling for protected endpoints
+        const isAuthRoute = cleanEndpoint.startsWith("/auth/login") ||
+                            cleanEndpoint.startsWith("/auth/register") ||
+                            cleanEndpoint.startsWith("/auth/verify-email") ||
+                            cleanEndpoint.startsWith("/auth/forgot-password") ||
+                            cleanEndpoint.startsWith("/auth/reset-password");
+
+        if (res.status === 401 && !isAuthRoute) {
+            if (localStorage.getItem("studentflow_token")) {
+                console.warn("Session expired or token invalid. Returning to login.");
+                handleLogout(false);
+                showAuthAlert("Your session has expired. Please log in again.", "error");
+            }
+        }
+
+        return {
+            ok: res.ok,
+            status: res.status,
+            data: data,
+            error: !res.ok ? (data?.message || `Request failed with status ${res.status}`) : null
+        };
+    } catch (err) {
+        clearTimeout(timeoutId);
+        const isTimeout = err.name === "AbortError";
+        const errorMsg = isTimeout
+            ? "Request timed out. Please check your network connection and try again."
+            : "Network error: Unable to reach the server. Please check your connection.";
+
+        return {
+            ok: false,
+            status: 0,
+            data: null,
+            error: errorMsg,
+            isNetworkError: true
+        };
+    }
+}
 
 // Application State
 let tasks = [];
@@ -238,28 +351,29 @@ document.addEventListener("DOMContentLoaded", async () => {
  * Verify session token against backend /api/auth/me
  */
 async function verifyAndRestoreSession(token) {
-    try {
-        const res = await fetch(`${API_BASE_URL}/auth/me`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
+    const res = await apiRequest("/auth/me");
 
-        if (res.ok) {
-            const data = await res.json();
-            currentUser = data.user;
-            localStorage.setItem("studentflow_user", JSON.stringify(currentUser));
-            showDashboardScreen();
-            await loadUserTasks();
-        } else {
-            // Token expired or invalid
-            handleLogout(false);
-        }
-    } catch (err) {
-        console.warn("Could not reach auth server, checking local session cache:", err.message);
+    if (res.ok && res.data?.user) {
+        currentUser = res.data.user;
+        localStorage.setItem("studentflow_user", JSON.stringify(currentUser));
+        showDashboardScreen();
+        await loadUserTasks();
+        await loadUserProfile(false);
+        await loadTaskStats();
+    } else if (res.status === 401) {
+        // Token expired or invalid
+        handleLogout(false);
+    } else {
+        console.warn("Could not reach auth server, checking local session cache:", res.error);
         const cachedUser = localStorage.getItem("studentflow_user");
         if (cachedUser) {
-            currentUser = JSON.parse(cachedUser);
-            showDashboardScreen();
-            await loadUserTasks();
+            try {
+                currentUser = JSON.parse(cachedUser);
+                showDashboardScreen();
+                await loadUserTasks();
+            } catch (_) {
+                handleLogout(false);
+            }
         } else {
             showAuthScreen();
         }
@@ -289,13 +403,13 @@ async function handleLogin(event) {
     clearAuthAlert();
 
     try {
-        const res = await fetch(`${API_BASE_URL}/auth/login`, {
+        const res = await apiRequest("/auth/login", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password })
+            body: { email, password },
+            skipAuth: true
         });
 
-        const data = await res.json();
+        const data = res.data || {};
 
         // 1. Unverified Email Check (HTTP 403 or requiresVerification flag)
         if (res.status === 403 || data.requiresVerification) {
@@ -324,12 +438,14 @@ async function handleLogin(event) {
             setTimeout(async () => {
                 showDashboardScreen();
                 await loadUserTasks();
+                await loadUserProfile(false);
+                await loadTaskStats();
             }, 400);
         } else {
-            showAuthAlert(data.message || "Invalid email or password", "error");
+            showAuthAlert(res.error || data.message || "Invalid email or password", "error");
         }
     } catch (err) {
-        showAuthAlert(`Network error: Could not connect to ${API_BASE_URL}`, "error");
+        showAuthAlert(`Network error: Could not connect to authentication server`, "error");
     } finally {
         setBtnLoading(submitBtn, false, "Log In");
     }
@@ -366,13 +482,13 @@ async function handleSignup(event) {
     clearAuthAlert();
 
     try {
-        const res = await fetch(`${API_BASE_URL}/auth/register`, {
+        const res = await apiRequest("/auth/register", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name, email, password, confirmPassword })
+            body: { name, email, password, confirmPassword },
+            skipAuth: true
         });
 
-        const data = await res.json();
+        const data = res.data || {};
 
         if (res.ok && data.success) {
             // Backend OTP Verification Flow (no JWT issued on signup alone)
@@ -393,10 +509,12 @@ async function handleSignup(event) {
                 setTimeout(async () => {
                     showDashboardScreen();
                     await loadUserTasks();
+                    await loadUserProfile(false);
+                    await loadTaskStats();
                 }, 400);
             }
         } else {
-            showAuthAlert(data.message || "Registration failed", "error");
+            showAuthAlert(res.error || data.message || "Registration failed", "error");
         }
     } catch (err) {
         showAuthAlert(`Network error: Could not reach backend server`, "error");
@@ -435,16 +553,16 @@ async function handleVerifyEmail(event) {
     clearAuthAlert();
 
     try {
-        const res = await fetch(`${API_BASE_URL}/auth/verify-email`, {
+        const res = await apiRequest("/auth/verify-email", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
+            body: {
                 email: pendingVerificationEmail,
                 otp: otp
-            })
+            },
+            skipAuth: true
         });
 
-        const data = await res.json();
+        const data = res.data || {};
 
         if (res.ok && data.success) {
             // Stop timers
@@ -469,9 +587,11 @@ async function handleVerifyEmail(event) {
             setTimeout(async () => {
                 showDashboardScreen();
                 await loadUserTasks();
+                await loadUserProfile(false);
+                await loadTaskStats();
             }, 400);
         } else {
-            showAuthAlert(data.message || "Invalid or expired verification code. Please try again.", "error");
+            showAuthAlert(res.error || data.message || "Invalid or expired verification code. Please try again.", "error");
             clearOtpInputs();
         }
     } catch (err) {
@@ -501,13 +621,13 @@ async function handleResendOtp() {
     clearAuthAlert();
 
     try {
-        const res = await fetch(`${API_BASE_URL}/auth/resend-verification`, {
+        const res = await apiRequest("/auth/resend-verification", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: pendingVerificationEmail })
+            body: { email: pendingVerificationEmail },
+            skipAuth: true
         });
 
-        const data = await res.json();
+        const data = res.data || {};
 
         if (res.status === 429) {
             const waitSec = data.retryAfter || 60;
@@ -519,7 +639,7 @@ async function handleResendOtp() {
             startResendCooldown(60);
             showAuthAlert(data.message || "A new 6-digit verification code has been sent to your email.", "success");
         } else {
-            showAuthAlert(data.message || "Unable to resend verification code. Please try again later.", "error");
+            showAuthAlert(res.error || data.message || "Unable to resend verification code. Please try again later.", "error");
             if (resendBtn) {
                 resendBtn.disabled = false;
                 resendBtn.innerHTML = originalText;
@@ -756,13 +876,13 @@ async function handleForgotPassword(event) {
     clearAuthAlert();
 
     try {
-        const res = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+        const res = await apiRequest("/auth/forgot-password", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email })
+            body: { email },
+            skipAuth: true
         });
 
-        const data = await res.json();
+        const data = res.data || {};
 
         if (res.ok && data.success) {
             // Display clear generic confirmation message
@@ -772,7 +892,7 @@ async function handleForgotPassword(event) {
             );
             if (emailInput) emailInput.value = "";
         } else {
-            showAuthAlert(data.message || "Unable to process password reset request. Please try again later.", "error");
+            showAuthAlert(res.error || data.message || "Unable to process password reset request. Please try again later.", "error");
         }
     } catch (err) {
         showAuthAlert("Network error: Could not reach authentication server. Please check your connection and try again.", "error");
@@ -805,8 +925,8 @@ async function handleResetPassword(event) {
         return;
     }
 
-    if (password.length < 6) {
-        showAuthAlert("New password must be at least 6 characters long.", "error");
+    if (password.length < 8) {
+        showAuthAlert("New password must be at least 8 characters long.", "error");
         return;
     }
 
@@ -819,13 +939,13 @@ async function handleResetPassword(event) {
     clearAuthAlert();
 
     try {
-        const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+        const res = await apiRequest("/auth/reset-password", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ token, password, confirmPassword })
+            body: { token, password, confirmPassword },
+            skipAuth: true
         });
 
-        const data = await res.json();
+        const data = res.data || {};
 
         if (res.ok && data.success) {
             // Remove token from browser URL address bar
@@ -844,7 +964,7 @@ async function handleResetPassword(event) {
             showAuthAlert("Password reset successfully! Please log in with your new password.", "success");
         } else {
             // Display invalid, expired, or backend error message
-            const errorMsg = data.message || "Invalid or expired password reset link. Please request a new one.";
+            const errorMsg = res.error || data.message || "Invalid or expired password reset link. Please request a new one.";
             showAuthAlert(errorMsg, "error");
         }
     } catch (err) {
@@ -862,9 +982,8 @@ async function handleLogout(callBackend = true) {
 
     if (callBackend && token) {
         try {
-            await fetch(`${API_BASE_URL}/auth/logout`, {
-                method: "POST",
-                headers: { Authorization: `Bearer ${token}` }
+            await apiRequest("/auth/logout", {
+                method: "POST"
             });
         } catch {
             // Ignore offline logout error
@@ -874,14 +993,29 @@ async function handleLogout(callBackend = true) {
     // Invalidate local session & clear memory
     localStorage.removeItem("studentflow_token");
     localStorage.removeItem("studentflow_user");
+    try { sessionStorage.removeItem("studentflow_pending_verify_email"); } catch (_) {}
+    pendingVerificationEmail = "";
     currentUser = null;
     tasks = [];
+
+    // Stop active timers
+    if (otpExpiryInterval) {
+        clearInterval(otpExpiryInterval);
+        otpExpiryInterval = null;
+    }
+    if (resendCooldownInterval) {
+        clearInterval(resendCooldownInterval);
+        resendCooldownInterval = null;
+    }
+
+    // Destroy chart instances
+    destroyStatisticsCharts();
 
     // Reset task form & search inputs
     clearForm();
     clearTaskView();
 
-    showAuthScreen();
+    showAuthScreen("login");
 }
 
 // ============================================================
@@ -1099,34 +1233,33 @@ function updateUserProfileUI() {
 // ============================================================
 
 /**
- * Returns Authorization header with JWT token
- */
-function getAuthHeaders() {
-    const token = localStorage.getItem("studentflow_token");
-    const headers = { "Content-Type": "application/json" };
-    if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-    }
-    return headers;
-}
-
-/**
  * Load tasks for the current user from backend
  */
 async function loadUserTasks() {
-    try {
-        const res = await fetch(`${API_BASE_URL}/tasks`, {
-            headers: getAuthHeaders()
+    const listContainers = ["taskList", "pendingTaskList", "completedTaskList", "overdueTaskList", "dashboardRecentList"];
+    if (tasks.length === 0) {
+        listContainers.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.innerHTML = `
+                    <div class="empty-state" style="padding: 28px; text-align: center;">
+                        <div class="empty-icon">⏳</div>
+                        <h3>Loading tasks...</h3>
+                        <p>Connecting to your personal task database.</p>
+                    </div>
+                `;
+            }
         });
+    }
 
-        if (res.ok) {
-            const result = await res.json();
-            tasks = result.data || [];
-        } else if (res.status === 401) {
-            handleLogout(false);
-            return;
-        } else {
-            // Fallback to local storage cache for this user
+    try {
+        const res = await apiRequest("/tasks");
+
+        if (res.ok && res.data && Array.isArray(res.data.data)) {
+            tasks = res.data.data;
+            saveTasksLocal();
+        } else if (res.status !== 401) {
+            // Fallback to local storage cache for this user if network issue
             const cached = localStorage.getItem(`tasks_${currentUser?.id || "guest"}`);
             tasks = cached ? JSON.parse(cached) : [];
         }
@@ -1136,8 +1269,8 @@ async function loadUserTasks() {
         tasks = cached ? JSON.parse(cached) : [];
     }
 
-    saveTasksLocal();
     refreshActiveView(currentRoute);
+    await loadTaskStats();
 }
 
 /**
@@ -1158,11 +1291,15 @@ async function addTask() {
     const category = document.getElementById("categoryInput").value.trim();
     const priority = document.getElementById("priorityInput").value;
     const dueDate = document.getElementById("dueDateInput").value;
+    const saveBtn = document.getElementById("saveTaskBtn");
 
     if (taskName === "" || subject === "" || dueDate === "") {
         alert("Please fill in the required fields: Task Name, Subject, and Due Date.");
         return;
     }
+
+    if (saveBtn && saveBtn.disabled) return;
+    setBtnLoading(saveBtn, true, editingTaskId ? "Updating..." : "Saving...");
 
     const taskPayload = {
         name: taskName,
@@ -1173,56 +1310,49 @@ async function addTask() {
         completed: false
     };
 
-    if (editingTaskId) {
-        // UPDATE Existing Task
-        try {
-            const res = await fetch(`${API_BASE_URL}/tasks/${editingTaskId}`, {
+    try {
+        if (editingTaskId) {
+            // UPDATE Existing Task
+            const res = await apiRequest(`/tasks/${editingTaskId}`, {
                 method: "PUT",
-                headers: getAuthHeaders(),
-                body: JSON.stringify(taskPayload)
+                body: taskPayload
             });
 
-            if (res.ok) {
-                const result = await res.json();
+            if (res.ok && res.data && res.data.data) {
                 const index = tasks.findIndex(t => t.id === editingTaskId || t._id === editingTaskId);
-                if (index !== -1) tasks[index] = result.data;
+                if (index !== -1) tasks[index] = res.data.data;
+                saveTasksLocal();
+                editingTaskId = null;
+                document.getElementById("formHeading").textContent = "Add New Task";
+                document.getElementById("saveTaskBtn").textContent = "Add Task";
+                clearForm();
+                refreshActiveView(currentRoute);
+                await loadTaskStats();
             } else {
-                const t = tasks.find(t => t.id === editingTaskId || t._id === editingTaskId);
-                if (t) Object.assign(t, taskPayload);
+                alert(res.error || "Failed to update task. Please check your inputs and try again.");
             }
-        } catch {
-            const t = tasks.find(t => t.id === editingTaskId || t._id === editingTaskId);
-            if (t) Object.assign(t, taskPayload);
-        }
-
-        editingTaskId = null;
-        document.getElementById("formHeading").textContent = "Add New Task";
-        document.getElementById("saveTaskBtn").textContent = "Add Task";
-    } else {
-        // CREATE New Task
-        taskPayload.id = Date.now();
-
-        try {
-            const res = await fetch(`${API_BASE_URL}/tasks`, {
+        } else {
+            // CREATE New Task
+            const res = await apiRequest("/tasks", {
                 method: "POST",
-                headers: getAuthHeaders(),
-                body: JSON.stringify(taskPayload)
+                body: taskPayload
             });
 
-            if (res.ok) {
-                const result = await res.json();
-                tasks.unshift(result.data);
+            if (res.ok && res.data && res.data.data) {
+                tasks.unshift(res.data.data);
+                saveTasksLocal();
+                clearForm();
+                refreshActiveView(currentRoute);
+                await loadTaskStats();
             } else {
-                tasks.unshift(taskPayload);
+                alert(res.error || "Failed to create task on the server. Please try again.");
             }
-        } catch {
-            tasks.unshift(taskPayload);
         }
+    } catch (err) {
+        alert("Network error: Could not reach the task service. Please check your connection.");
+    } finally {
+        setBtnLoading(saveBtn, false, editingTaskId ? "Update Task" : "Add Task");
     }
-
-    saveTasksLocal();
-    clearForm();
-    refreshActiveView(currentRoute);
 }
 
 /**
@@ -1232,17 +1362,34 @@ async function completeTask(id) {
     const task = tasks.find(t => t.id === id || t._id === id);
     if (!task) return;
 
-    task.completed = !task.completed;
+    // Optimistically toggle
+    const previousCompleted = task.completed;
+    task.completed = !previousCompleted;
     saveTasksLocal();
     refreshActiveView(currentRoute);
 
     try {
-        await fetch(`${API_BASE_URL}/tasks/${id}/complete`, {
-            method: "PATCH",
-            headers: getAuthHeaders()
+        const res = await apiRequest(`/tasks/${id}/complete`, {
+            method: "PATCH"
         });
+
+        if (res.ok && res.data && res.data.data) {
+            task.completed = res.data.data.completed;
+            saveTasksLocal();
+            await loadTaskStats();
+        } else {
+            // Rollback on server rejection
+            task.completed = previousCompleted;
+            saveTasksLocal();
+            refreshActiveView(currentRoute);
+            alert(res.error || "Could not update task status on the server.");
+        }
     } catch (err) {
-        console.warn("Could not sync task complete status with server:", err.message);
+        // Rollback on network failure
+        task.completed = previousCompleted;
+        saveTasksLocal();
+        refreshActiveView(currentRoute);
+        alert("Network error: Could not sync task status with server.");
     }
 }
 
@@ -1275,17 +1422,30 @@ async function deleteTask(id) {
     const confirmDelete = confirm("Are you sure you want to delete this task?");
     if (!confirmDelete) return;
 
+    const previousTasks = [...tasks];
     tasks = tasks.filter(t => t.id !== id && t._id !== id);
     saveTasksLocal();
     refreshActiveView(currentRoute);
 
     try {
-        await fetch(`${API_BASE_URL}/tasks/${id}`, {
-            method: "DELETE",
-            headers: getAuthHeaders()
+        const res = await apiRequest(`/tasks/${id}`, {
+            method: "DELETE"
         });
+
+        if (res.ok) {
+            await loadTaskStats();
+        } else {
+            // Rollback on failure
+            tasks = previousTasks;
+            saveTasksLocal();
+            refreshActiveView(currentRoute);
+            alert(res.error || "Failed to delete task from server.");
+        }
     } catch (err) {
-        console.warn("Could not sync task deletion with server:", err.message);
+        tasks = previousTasks;
+        saveTasksLocal();
+        refreshActiveView(currentRoute);
+        alert("Network error: Could not reach server to delete task.");
     }
 }
 
@@ -1481,25 +1641,73 @@ function destroyStatisticsCharts() {
     }
 }
 
+let latestServerStats = null;
+
+/**
+ * Fetch Authoritative Task Statistics from Backend GET /api/tasks/stats
+ */
+async function loadTaskStats() {
+    const today = new Date().toISOString().split("T")[0];
+    try {
+        const res = await apiRequest(`/tasks/stats?today=${today}`);
+        if (res.ok && res.data && (res.data.data || res.data.stats)) {
+            const stats = res.data.data || res.data.stats;
+            latestServerStats = stats;
+            updateStatistics(stats);
+            return stats;
+        }
+    } catch (err) {
+        console.warn("Could not fetch server task stats:", err.message);
+    }
+    updateStatistics(null);
+    return null;
+}
+
 /**
  * Update Statistics view figures, progress bar, and charts
  */
-function updateStatistics() {
-    const total = tasks.length;
-    const completed = tasks.filter(t => t.completed).length;
+function updateStatistics(serverStats = latestServerStats) {
     const today = new Date().toISOString().split("T")[0];
 
-    // Mutually exclusive calculation to ensure zero double-counting:
-    // Completed: t.completed === true
-    // Overdue: !t.completed && t.dueDate < today
-    // Pending (active/on-track): !t.completed && (!t.dueDate || t.dueDate >= today)
-    const overdue = tasks.filter(t => !t.completed && t.dueDate && t.dueDate < today).length;
-    const pending = tasks.filter(t => !t.completed && (!t.dueDate || t.dueDate >= today)).length;
-
+    let total = 0;
+    let completed = 0;
+    let pending = 0;
+    let overdue = 0;
     let progress = 0;
-    if (total > 0) {
-        progress = Math.round((completed / total) * 100);
+
+    if (serverStats && typeof serverStats.total === "number") {
+        total = serverStats.total;
+        completed = serverStats.completed || 0;
+        pending = serverStats.pending || 0;
+        overdue = serverStats.overdue || 0;
+        progress = typeof serverStats.completionRate === "number"
+            ? serverStats.completionRate
+            : (total > 0 ? Math.round((completed / total) * 100) : 0);
+    } else {
+        total = tasks.length;
+        completed = tasks.filter(t => t.completed).length;
+        overdue = tasks.filter(t => !t.completed && t.dueDate && t.dueDate < today).length;
+        pending = tasks.filter(t => !t.completed && (!t.dueDate || t.dueDate >= today)).length;
+        if (total > 0) {
+            progress = Math.round((completed / total) * 100);
+        }
     }
+
+    // Dashboard Cards Sync
+    const totalEl = document.getElementById("totalTasks");
+    const completedEl = document.getElementById("completedTasks");
+    const pendingEl = document.getElementById("pendingTasks");
+    const overdueEl = document.getElementById("overdueTasks");
+
+    if (totalEl) totalEl.textContent = total;
+    if (completedEl) completedEl.textContent = completed;
+    if (pendingEl) pendingEl.textContent = pending;
+    if (overdueEl) overdueEl.textContent = overdue;
+
+    const progressText = document.getElementById("progressText");
+    const progressFill = document.getElementById("progressFill");
+    if (progressText) progressText.textContent = progress + "%";
+    if (progressFill) progressFill.style.width = progress + "%";
 
     // Overall Progress Bar in Statistics
     const statsProgressText = document.getElementById("statsProgressText");
@@ -1799,6 +2007,13 @@ function refreshActiveView(route = currentRoute) {
 
     if (route === "dashboard") {
         renderDashboardRecentTasks();
+        if (getAuthToken()) {
+            loadTaskStats();
+        }
+    } else if (route === "statistics") {
+        if (getAuthToken()) {
+            loadTaskStats();
+        }
     } else if (route === "tasks") {
         renderTaskList("all", "searchInput", "sortSelect", "taskList");
     } else if (route === "pending") {
@@ -2154,7 +2369,10 @@ function populateProfileFields(user) {
     const gradYearInput = document.getElementById("profileGraduationYearInput");
 
     if (nameInput) nameInput.value = user.name || "";
-    if (emailInput) emailInput.value = user.email || "";
+    if (emailInput) {
+        emailInput.value = user.email || "";
+        emailInput.disabled = true;
+    }
     if (genderInput) genderInput.value = user.gender || "";
     if (dobInput) dobInput.value = user.dateOfBirth || "";
     if (phoneInput) phoneInput.value = user.phone || "";
@@ -2185,29 +2403,20 @@ async function loadUserProfile(forceFetch = true) {
     if (!forceFetch) return;
 
     try {
-        let res = await fetch(`${API_BASE_URL}/auth/profile`, {
-            headers: getAuthHeaders()
-        });
+        let res = await apiRequest("/auth/profile", { method: "GET" });
 
         // Fallback to /api/auth/me if backend does not yet have /api/auth/profile
         if (res.status === 404) {
-            res = await fetch(`${API_BASE_URL}/auth/me`, {
-                headers: getAuthHeaders()
-            });
+            res = await apiRequest("/auth/me", { method: "GET" });
         }
 
-        if (res.ok) {
-            const data = await res.json();
-            if (data.user) {
-                currentUser = data.user;
-                localStorage.setItem("studentflow_user", JSON.stringify(currentUser));
-                updateUserProfileUI();
-                populateProfileFields(currentUser);
-            }
-        } else if (res.status === 401) {
-            handleLogout(false);
-        } else {
-            console.warn("Failed to fetch profile from server:", res.status);
+        if (res.ok && res.data && res.data.user) {
+            currentUser = res.data.user;
+            localStorage.setItem("studentflow_user", JSON.stringify(currentUser));
+            updateUserProfileUI();
+            populateProfileFields(currentUser);
+        } else if (res.status !== 401) {
+            console.warn("Failed to fetch profile from server:", res.status, res.error);
         }
     } catch (err) {
         console.warn("Could not reach profile API, using cached data:", err.message);
@@ -2425,21 +2634,13 @@ async function handleProfileSubmit(event) {
     }
 
     try {
-        const res = await fetch(`${API_BASE_URL}/auth/profile`, {
+        const res = await apiRequest("/auth/profile", {
             method: "PUT",
-            headers: getAuthHeaders(),
-            body: JSON.stringify(payload)
+            body: payload
         });
 
-        let data = null;
-        try {
-            data = await res.json();
-        } catch (_) {
-            data = null;
-        }
-
-        if (res.ok && data && data.success) {
-            currentUser = data.user;
+        if (res.ok && res.data && res.data.success) {
+            currentUser = res.data.user;
             localStorage.setItem("studentflow_user", JSON.stringify(currentUser));
             pendingProfileAvatar = null;
 
@@ -2448,7 +2649,7 @@ async function handleProfileSubmit(event) {
             toggleProfileEditMode(false);
             showProfileAlert("✓ Profile updated successfully! All changes have been saved to your account.", "success");
         } else {
-            const errorMsg = data?.message ||
+            const errorMsg = res.data?.message || res.error ||
                 (res.status === 404
                     ? "Backend endpoint PUT /api/auth/profile is not available on this server yet."
                     : `Failed to update profile (Server error ${res.status}). Please try again.`);
@@ -2604,25 +2805,17 @@ async function handleChangePasswordSubmit(event) {
     setBtnLoading(submitBtn, true, "Updating...");
 
     try {
-        const res = await fetch(API_BASE_URL + "/auth/change-password", {
+        const res = await apiRequest("/auth/change-password", {
             method: "PUT",
-            headers: getAuthHeaders(),
-            body: JSON.stringify({
+            body: {
                 currentPassword: currentPassword,
                 newPassword: newPassword,
                 confirmPassword: confirmPassword
-            })
+            }
         });
 
-        let data = null;
-        try {
-            data = await res.json();
-        } catch (_) {
-            data = null;
-        }
-
-        if (res.ok && data && data.success) {
-            showChangePasswordAlert((data && data.message) || "Password updated successfully!", "success");
+        if (res.ok && res.data && res.data.success) {
+            showChangePasswordAlert((res.data && res.data.message) || "Password updated successfully!", "success");
             // Clear inputs on success
             if (currentPassInput) currentPassInput.value = "";
             if (newPassInput) newPassInput.value = "";
@@ -2637,7 +2830,7 @@ async function handleChangePasswordSubmit(event) {
             }, 2500);
         } else {
             // Keep fields intact on failure so user does not lose input
-            const errorMsg = (data && data.message) ||
+            const errorMsg = (res.data && res.data.message) || res.error ||
                 (res.status === 401
                     ? "Your session has expired. Please log in again."
                     : res.status === 404

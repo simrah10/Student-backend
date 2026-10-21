@@ -9,24 +9,54 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI;
 
-// CORS Configuration (supports frontend on Render, Vercel, or local dev)
+// CORS Configuration (supports frontend on Render, GitHub Pages, Vercel, or local dev)
+const sanitizeOrigin = (urlStr) => {
+  if (!urlStr || urlStr === "*") return urlStr;
+  try {
+    return new URL(urlStr).origin.toLowerCase();
+  } catch {
+    return urlStr.trim().replace(/\/+$/, "").toLowerCase();
+  }
+};
+
 const clientUrl = process.env.CLIENT_URL;
-const allowedOrigins = clientUrl && clientUrl !== "*"
-  ? clientUrl.split(",").map((origin) => origin.trim())
-  : null;
+const frontendUrl = process.env.FRONTEND_URL;
+
+// Known allowed production and local origins
+const standardOrigins = [
+  "https://simrah10.github.io",
+  "http://localhost:5000",
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:5500"
+];
+
+let allowedOrigins = null;
+if (clientUrl && clientUrl.trim() !== "*") {
+  const configured = clientUrl.split(",").map(sanitizeOrigin).filter(Boolean);
+  if (frontendUrl) configured.push(sanitizeOrigin(frontendUrl));
+  allowedOrigins = Array.from(new Set([...configured, ...standardOrigins]));
+} else if (!clientUrl && frontendUrl) {
+  allowedOrigins = Array.from(new Set([sanitizeOrigin(frontendUrl), ...standardOrigins]));
+}
 
 const corsOptions = {
   origin: (origin, callback) => {
     // Allow server-to-server, curl, mobile apps, or same-origin requests (origin is undefined)
     if (!origin) return callback(null, true);
-    if (!allowedOrigins || allowedOrigins.includes("*") || allowedOrigins.includes(origin)) {
+    if (!allowedOrigins || allowedOrigins.includes("*")) {
+      return callback(null, true);
+    }
+    const cleanOrigin = origin.toLowerCase().trim().replace(/\/+$/, "");
+    if (allowedOrigins.includes(cleanOrigin) || cleanOrigin.endsWith(".github.io")) {
       return callback(null, true);
     }
     return callback(new Error(`CORS policy does not allow access from origin ${origin}`));
   },
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "x-api-key"],
-  credentials: true
+  credentials: true,
+  optionsSuccessStatus: 200
 };
 
 app.use(cors(corsOptions));
