@@ -2845,3 +2845,189 @@ async function handleChangePasswordSubmit(event) {
         setBtnLoading(submitBtn, false, "Update Password");
     }
 }
+
+// ============================================================
+// PERMANENT ACCOUNT DELETION (PROFILE PAGE DANGER ZONE)
+// ============================================================
+
+let isDeletingAccount = false;
+
+/**
+ * Open Delete Account Confirmation Modal
+ */
+function openDeleteAccountModal() {
+    isDeletingAccount = false;
+    const modal = document.getElementById("deleteAccountModalOverlay");
+    const input = document.getElementById("deleteConfirmInput");
+    const confirmBtn = document.getElementById("confirmDeleteAccountBtn");
+    const cancelBtn = document.getElementById("deleteAccountCancelBtn");
+    const closeX = document.getElementById("deleteModalCloseX");
+
+    if (input) {
+        input.value = "";
+        input.disabled = false;
+    }
+    if (confirmBtn) {
+        confirmBtn.textContent = "Permanently Delete";
+        confirmBtn.disabled = true;
+    }
+    if (cancelBtn) cancelBtn.disabled = false;
+    if (closeX) closeX.disabled = false;
+
+    hideDeleteAccountAlert();
+
+    if (modal) {
+        modal.style.display = "flex";
+    }
+
+    // Auto-focus confirmation input
+    setTimeout(() => {
+        if (input) input.focus();
+    }, 100);
+}
+
+/**
+ * Close Delete Account Confirmation Modal
+ */
+function closeDeleteAccountModal(force = false) {
+    if (isDeletingAccount && !force) return;
+    const modal = document.getElementById("deleteAccountModalOverlay");
+    if (modal) {
+        modal.style.display = "none";
+    }
+    const input = document.getElementById("deleteConfirmInput");
+    if (input) input.value = "";
+    hideDeleteAccountAlert();
+}
+
+/**
+ * Handle backdrop click outside modal content
+ */
+function handleDeleteOverlayClick(event) {
+    if (event.target && event.target.id === "deleteAccountModalOverlay") {
+        closeDeleteAccountModal();
+    }
+}
+
+/**
+ * Enable/Disable Delete button based on exact "DELETE" input
+ */
+function handleDeleteConfirmInput(inputEl) {
+    const confirmBtn = document.getElementById("confirmDeleteAccountBtn");
+    if (!confirmBtn) return;
+    const val = inputEl ? inputEl.value.trim() : "";
+    confirmBtn.disabled = (val !== "DELETE");
+}
+
+/**
+ * Show error alert inside Delete Account modal
+ */
+function showDeleteAccountAlert(message, type = "error") {
+    const alertBox = document.getElementById("deleteAccountAlert");
+    if (!alertBox) return;
+    alertBox.textContent = message;
+    alertBox.className = "auth-alert " + type;
+    alertBox.style.display = "block";
+}
+
+/**
+ * Hide error alert inside Delete Account modal
+ */
+function hideDeleteAccountAlert() {
+    const alertBox = document.getElementById("deleteAccountAlert");
+    if (!alertBox) return;
+    alertBox.style.display = "none";
+    alertBox.textContent = "";
+}
+
+/**
+ * Submit permanent account deletion request to backend DELETE /api/auth/account
+ */
+async function handleDeleteAccountSubmit() {
+    if (isDeletingAccount) return;
+
+    const input = document.getElementById("deleteConfirmInput");
+    const confirmBtn = document.getElementById("confirmDeleteAccountBtn");
+    const cancelBtn = document.getElementById("deleteAccountCancelBtn");
+    const closeX = document.getElementById("deleteModalCloseX");
+
+    if (!input || input.value.trim() !== "DELETE") {
+        showDeleteAccountAlert("Please type DELETE in capital letters to confirm.", "error");
+        if (input) input.focus();
+        return;
+    }
+
+    isDeletingAccount = true;
+    hideDeleteAccountAlert();
+
+    if (input) input.disabled = true;
+    if (cancelBtn) cancelBtn.disabled = true;
+    if (closeX) closeX.disabled = true;
+    setBtnLoading(confirmBtn, true, "Deleting Account...");
+
+    try {
+        const res = await apiRequest("/auth/account", {
+            method: "DELETE"
+        });
+
+        if (res.ok && res.data && res.data.success) {
+            // Close modal immediately
+            closeDeleteAccountModal(true);
+
+            // Thoroughly clear all authentication tokens and cached user data
+            localStorage.removeItem("studentflow_token");
+            localStorage.removeItem("studentflow_user");
+            localStorage.removeItem("studentflow_tasks");
+            sessionStorage.clear();
+
+            tasks = [];
+            currentUser = null;
+            pendingProfileAvatar = null;
+            editingTaskId = null;
+            latestServerStats = null;
+
+            destroyStatisticsCharts();
+            updateUserProfileUI();
+
+            // Clear intervals if running
+            if (otpExpiryInterval) {
+                clearInterval(otpExpiryInterval);
+                otpExpiryInterval = null;
+            }
+            if (resendCooldownInterval) {
+                clearInterval(resendCooldownInterval);
+                resendCooldownInterval = null;
+            }
+
+            // Return user to login screen with clear confirmation notice
+            switchAuthMode("login");
+            showAuthAlert("✓ Your account and all associated data have been permanently deleted.", "success");
+        } else {
+            const errorMsg = res.data?.message || res.error || "Failed to delete account. Please try again.";
+            showDeleteAccountAlert(errorMsg, "error");
+            isDeletingAccount = false;
+            if (input) input.disabled = false;
+            if (cancelBtn) cancelBtn.disabled = false;
+            if (closeX) closeX.disabled = false;
+            setBtnLoading(confirmBtn, false, "Permanently Delete");
+        }
+    } catch (err) {
+        console.error("Account deletion error:", err);
+        showDeleteAccountAlert("Network error: Could not reach the server. Please check your connection.", "error");
+        isDeletingAccount = false;
+        if (input) input.disabled = false;
+        if (cancelBtn) cancelBtn.disabled = false;
+        if (closeX) closeX.disabled = false;
+        setBtnLoading(confirmBtn, false, "Permanently Delete");
+    }
+}
+
+// Global ESC key listener to close Delete Account modal if open
+window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+        const modal = document.getElementById("deleteAccountModalOverlay");
+        if (modal && modal.style.display !== "none" && !isDeletingAccount) {
+            closeDeleteAccountModal();
+        }
+    }
+});

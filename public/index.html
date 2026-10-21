@@ -996,10 +996,78 @@
 
                 </form>
 
+                <!-- 3. DANGER ZONE (VERY BOTTOM OF PROFILE PAGE) -->
+                <section class="profile-section danger-zone-section" id="profileDangerZone">
+                    <div class="section-heading">
+                        <div>
+                            <h2 class="danger-zone-heading">Danger Zone</h2>
+                            <p>Irreversible and permanent actions for your StudentFlow account.</p>
+                        </div>
+                    </div>
+
+                    <div class="danger-zone-card">
+                        <div class="danger-zone-info">
+                            <h3>Permanently Delete Account</h3>
+                            <p class="danger-zone-warning">Deleting your account permanently removes your account and associated data. This action cannot be undone.</p>
+                        </div>
+                        <div class="danger-zone-action">
+                            <button type="button" class="danger-btn" id="deleteAccountOpenModalBtn" onclick="openDeleteAccountModal()">
+                                🗑️ Delete Account
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
             </div>
 
         </main>
 
+    </div>
+
+    <!-- ================= MODAL: PERMANENT ACCOUNT DELETION ================= -->
+    <div id="deleteAccountModalOverlay" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle" onclick="handleDeleteOverlayClick(event)">
+        <div class="modal-box delete-modal-box" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <div class="modal-title-row">
+                    <span class="danger-icon-circle">⚠️</span>
+                    <h2 id="deleteModalTitle">Permanently Delete Account?</h2>
+                </div>
+                <button type="button" class="modal-close-btn" id="deleteModalCloseX" onclick="closeDeleteAccountModal()" aria-label="Close modal">✕</button>
+            </div>
+
+            <div class="modal-body">
+                <div class="delete-warning-callout">
+                    <p><strong>Warning:</strong> Deleting your account permanently removes your account and associated data. This action cannot be undone.</p>
+                    <ul class="delete-warning-list">
+                        <li>Your account credentials and student profile will be deleted.</li>
+                        <li>All your created, pending, and completed tasks will be permanently removed.</li>
+                        <li>All historical task statistics and metrics will be erased.</li>
+                    </ul>
+                </div>
+
+                <div id="deleteAccountAlert" class="auth-alert error" style="display: none;" role="alert"></div>
+
+                <div class="input-group delete-confirm-group">
+                    <label for="deleteConfirmInput">
+                        To confirm, please type <strong class="delete-match-keyword">DELETE</strong> in the field below:
+                    </label>
+                    <input type="text" 
+                           id="deleteConfirmInput" 
+                           placeholder="Type DELETE to confirm" 
+                           autocomplete="off" 
+                           oninput="handleDeleteConfirmInput(this)">
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="secondary-btn" id="deleteAccountCancelBtn" onclick="closeDeleteAccountModal()">
+                    Cancel
+                </button>
+                <button type="button" class="danger-btn" id="confirmDeleteAccountBtn" onclick="handleDeleteAccountSubmit()" disabled>
+                    Permanently Delete
+                </button>
+            </div>
+        </div>
     </div>
 
     <script src="chart.min.js"></script>

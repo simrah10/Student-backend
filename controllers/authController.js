@@ -1,7 +1,9 @@
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
 const User = require("../models/User");
+const Task = require("../models/Task");
 const { getJwtSecret } = require("../middleware/auth");
 const { sendPasswordResetEmail, sendVerificationOtpEmail } = require("../services/emailService");
 
@@ -1117,6 +1119,143 @@ const changePassword = async (req, res, next) => {
   }
 };
 
+/**
+ * Permanently delete authenticated user's account and all associated data
+ * DELETE /api/auth/account
+ * Private (requires protect middleware)
+ */
+const deleteAccount = async (req, res, next) => {
+  try {
+    const userId = req.user && req.user._id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required to delete account."
+      });
+    }
+
+    let isTransactional = false;
+    let session = null;
+
+    // Check if MongoDB deployment supports multi-document transactions (e.g. MongoDB Atlas replica set)
+    try {
+      const topologyType = mongoose.connection?.client?.topology?.description?.type;
+      const isReplicaOrSharded = typeof topologyType === "string" && (
+        topologyType.includes("ReplicaSet") ||
+        topologyType.includes("Sharded")
+      );
+
+      if (isReplicaOrSharded) {
+        session = await mongoose.startSession();
+        await session.withTransaction(
+          async () => {
+            await Task.deleteMany({ userId: userId }).session(session);
+            await User.findByIdAndDelete(userId).session(session);
+          },
+          {
+            readPreference: "primary",
+            readConcern: { level: "local" },
+            writeConcern: { w: "majority" }
+          }
+        );
+        isTransactional = true;
+      }
+    } catch (txError) {
+      const isUnsupported =
+        txError.code === 20 ||
+        /replica set|not supported|standalone/i.test(txError.message || "");
+      if (isUnsupported) {
+        console.warn("MongoDB deployment does not support transactions; using compensated deletion:", txError.message);
+        isTransactional = false;
+      } else {
+        // On a replica set where transactions are supported, the transaction was aborted cleanly.
+        // Rethrow so we do not perform unsafe non-atomic deletes on a failing DB.
+        throw txError;
+      }
+    } finally {
+      if (session) {
+        try {
+          await session.endSession();
+        } catch (_) {}
+      }
+    }
+
+    // If transactions are not supported by the deployment, execute compensated failure-safe strategy
+    if (!isTransactional) {
+      // 1. Delete all user tasks with retry policy
+      let taskError = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          await Task.deleteMany({ userId: userId });
+          taskError = null;
+          break;
+        } catch (err) {
+          taskError = err;
+          if (attempt < 3) await new Promise((r) => setTimeout(r, 100 * attempt));
+        }
+      }
+
+      // If task deletion failed after retries, abort BEFORE modifying user document.
+      // This leaves the user document and tasks intact, completely preventing orphaned data.
+      if (taskError) {
+        throw new Error(`Failed to delete user tasks: ${taskError.message}`);
+      }
+
+      // 2. Delete user account record with retry policy
+      let userError = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          await User.findByIdAndDelete(userId);
+          userError = null;
+          break;
+        } catch (err) {
+          userError = err;
+          if (attempt < 3) await new Promise((r) => setTimeout(r, 100 * attempt));
+        }
+      }
+
+      // 3. Compensation if user document deletion failed after tasks were deleted
+      if (userError) {
+        // Tasks were removed, but user document deletion failed after 3 retries.
+        // Prevent silent inconsistency by releasing original email, invalidating credentials, and deactivating account.
+        try {
+          const tombstoneEmail = `deleted_${Date.now()}_${userId}@deleted.studentflow.local`;
+          const salt = await bcrypt.genSalt(10);
+          const scrambledPassword = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), salt);
+          await User.updateOne(
+            { _id: userId },
+            {
+              $set: {
+                email: tombstoneEmail,
+                password: scrambledPassword,
+                isEmailVerified: false,
+                emailVerificationOtp: null,
+                resetPasswordToken: null
+              }
+            }
+          );
+          console.warn(`[RECOVERY] Compensated partial deletion for user ${userId}. Email released as ${tombstoneEmail}`);
+        } catch (compErr) {
+          console.error(`[CRITICAL] Compensation failed for user ${userId}:`, compErr.message);
+        }
+        throw new Error("Account deletion partially failed and could not be finalized. Your email has been released.");
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Your account and all associated data have been permanently deleted."
+    });
+  } catch (error) {
+    console.error("Account deletion error:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while deleting your account. Please try again later."
+    });
+  }
+};
+
 module.exports = {
   register,
   verifyEmail,
@@ -1129,5 +1268,6 @@ module.exports = {
   getMe,
   getProfile,
   updateProfile,
-  logout
+  logout,
+  deleteAccount
 };

@@ -11,7 +11,8 @@ const {
   getMe,
   getProfile,
   updateProfile,
-  logout
+  logout,
+  deleteAccount
 } = require("../controllers/authController");
 const { protect } = require("../middleware/auth");
 const { forgotPasswordRateLimiter } = require("../middleware/rateLimiter");
@@ -35,5 +36,8 @@ router.route("/profile")
 router.put("/change-password", protect, changePassword);
 router.post("/change-password", protect, changePassword);
 router.put("/password", protect, changePassword);
+
+// Authenticated permanent account deletion
+router.delete("/account", protect, deleteAccount);
 
 module.exports = router;

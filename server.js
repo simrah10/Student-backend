@@ -104,6 +104,9 @@ const formatMongoUri = (rawUri) => {
 
 // MongoDB Database Connection
 const connectDB = async () => {
+  if (mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2) {
+    return;
+  }
   if (!MONGO_URI) {
     console.warn("⚠️  MongoDB Warning: MONGO_URI is not set in environment variables. Please set MONGO_URI to connect to your database.");
     return;
