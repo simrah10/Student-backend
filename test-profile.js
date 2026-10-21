@@ -2,7 +2,6 @@ const http = require("http");
 const mongoose = require("mongoose");
 const { MongoMemoryServer } = require("mongodb-memory-server");
 const User = require("./models/User");
-const { getLastSentEmail } = require("./services/emailService");
 
 const request = (options, postData) => {
   return new Promise((resolve, reject) => {
@@ -88,19 +87,11 @@ async function runProfileTests() {
       password: "Password123!",
       confirmPassword: "Password123!"
     });
-    if (regResA.status !== 201 || !regResA.body.requiresVerification) {
+    if (regResA.status !== 201 || !regResA.body.token) {
       throw new Error("User A registration failed: " + JSON.stringify(regResA));
     }
-    const emailA = getLastSentEmail();
-    const verifyResA = await api("POST", "/api/auth/verify-email", {
-      email: "emma@oxford.edu",
-      otp: emailA.otp
-    });
-    if (verifyResA.status !== 200 || !verifyResA.body.token) {
-      throw new Error("User A verification failed: " + JSON.stringify(verifyResA));
-    }
-    const tokenA = verifyResA.body.token;
-    console.log("✓ User A registered and verified successfully!");
+    const tokenA = regResA.body.token;
+    console.log("✓ User A registered successfully!");
 
     // 3. Authenticated GET /api/auth/profile retrieves initial profile with all defaults
     console.log("\n[3/13] Testing Authenticated GET /api/auth/profile (Initial Defaults)...");
@@ -282,12 +273,7 @@ async function runProfileTests() {
       password: "Password321!",
       confirmPassword: "Password321!"
     });
-    const emailB = getLastSentEmail();
-    const verifyResB = await api("POST", "/api/auth/verify-email", {
-      email: "james@oxford.edu",
-      otp: emailB.otp
-    });
-    const tokenB = verifyResB.body.token;
+    const tokenB = regResB.body.token;
 
     // User A's ID
     const userA_id = getPersistedRes.body.user.id;

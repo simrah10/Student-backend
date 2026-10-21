@@ -2,8 +2,6 @@ const express = require("express");
 const router = express.Router();
 const {
   register,
-  verifyEmail,
-  resendVerification,
   login,
   forgotPassword,
   resetPassword,
@@ -18,8 +16,6 @@ const { forgotPasswordRateLimiter } = require("../middleware/rateLimiter");
 
 // Public routes
 router.post("/register", register);
-router.post("/verify-email", verifyEmail);
-router.post("/resend-verification", resendVerification);
 router.post("/login", login);
 router.post("/forgot-password", forgotPasswordRateLimiter, forgotPassword);
 router.post("/reset-password", resetPassword);

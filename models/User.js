@@ -97,30 +97,6 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
       select: false
-    },
-    isEmailVerified: {
-      type: Boolean,
-      default: undefined
-    },
-    emailVerificationOtp: {
-      type: String,
-      default: null,
-      select: false
-    },
-    emailVerificationExpires: {
-      type: Date,
-      default: null,
-      select: false
-    },
-    emailVerificationAttempts: {
-      type: Number,
-      default: 0,
-      select: false
-    },
-    emailVerificationLastSent: {
-      type: Date,
-      default: null,
-      select: false
     }
   },
   {

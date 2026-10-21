@@ -1,7 +1,6 @@
 const http = require("http");
 const mongoose = require("mongoose");
 const { MongoMemoryServer } = require("mongodb-memory-server");
-const { getLastSentEmail } = require("./services/emailService");
 
 const request = (options, postData) => {
   return new Promise((resolve, reject) => {
@@ -106,19 +105,11 @@ async function runTests() {
       password: "Password123!",
       confirmPassword: "Password123!"
     }, null);
-    if (regRes.status !== 201 || !regRes.body.requiresVerification) {
-      throw new Error("Failed to register test user: " + JSON.stringify(regRes));
-    }
-    const emailData = getLastSentEmail();
-    const verifyRes = await api("POST", "/api/auth/verify-email", {
-      email: "apitester@university.edu",
-      otp: emailData.otp
-    }, null);
-    if (verifyRes.status === 200 && verifyRes.body.token) {
-      authToken = verifyRes.body.token;
-      console.log("✓ Test user registered and verified with OTP, authenticated JWT obtained!");
+    if (regRes.status === 201 && regRes.body.token) {
+      authToken = regRes.body.token;
+      console.log("✓ Test user registered, authenticated JWT obtained!");
     } else {
-      throw new Error("Failed to verify test user: " + JSON.stringify(verifyRes));
+      throw new Error("Failed to register test user: " + JSON.stringify(regRes));
     }
 
     // 6. Test Validation on Create Task
