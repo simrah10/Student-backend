@@ -81,11 +81,19 @@ async function runAuthTests() {
       password: "Password123!",
       confirmPassword: "Password123!"
     });
-    if (regResA.status !== 201 || !regResA.body.token) {
+    if (regResA.status !== 201 || !regResA.body.requiresVerification) {
       throw new Error(`Registration failed: ${JSON.stringify(regResA.body)}`);
     }
-    const tokenA = regResA.body.token;
-    console.log("✓ User A registered successfully! JWT session created.");
+    const emailA = getLastSentEmail();
+    const verifyResA = await api("POST", "/api/auth/verify-email", {
+      email: "emma@oxford.edu",
+      otp: emailA.otp
+    });
+    if (verifyResA.status !== 200 || !verifyResA.body.token) {
+      throw new Error(`Verification failed: ${JSON.stringify(verifyResA.body)}`);
+    }
+    const tokenA = verifyResA.body.token;
+    console.log("✓ User A registered and verified successfully! JWT session created.");
 
     // 2. Reject mismatched confirm password
     console.log("\n[2/17] Testing mismatched confirm password validation...");
@@ -313,7 +321,12 @@ async function runAuthTests() {
       email: "james@oxford.edu",
       password: "Password321!"
     });
-    const tokenB = regResB.body.token;
+    const emailB = getLastSentEmail();
+    const verifyResB = await api("POST", "/api/auth/verify-email", {
+      email: "james@oxford.edu",
+      otp: emailB.otp
+    });
+    const tokenB = verifyResB.body.token;
 
     // User A creates task
     const taskResA = await api("POST", "/api/tasks", {

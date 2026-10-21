@@ -45,6 +45,14 @@ const protect = async (req, res, next) => {
       });
     }
 
+    if (user.isEmailVerified === false) {
+      return res.status(403).json({
+        success: false,
+        requiresVerification: true,
+        message: "Access denied. Please verify your email address to access this resource."
+      });
+    }
+
     req.user = user;
     next();
   } catch (error) {

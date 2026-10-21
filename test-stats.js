@@ -1,6 +1,7 @@
 const http = require("http");
 const mongoose = require("mongoose");
 const { MongoMemoryServer } = require("mongodb-memory-server");
+const { getLastSentEmail } = require("./services/emailService");
 
 const request = (options, postData) => {
   return new Promise((resolve, reject) => {
@@ -87,11 +88,19 @@ async function runStatsTests() {
       email: "alice@stats.test",
       password: "Password123!"
     });
-    if (regResA.status !== 201 || !regResA.body.token) {
+    if (regResA.status !== 201 || !regResA.body.requiresVerification) {
       throw new Error("Failed to register User A: " + JSON.stringify(regResA));
     }
-    const tokenA = regResA.body.token;
-    console.log("✓ User A registered, JWT acquired.");
+    const emailA = getLastSentEmail();
+    const verifyResA = await api("POST", "/api/auth/verify-email", {
+      email: "alice@stats.test",
+      otp: emailA.otp
+    });
+    if (verifyResA.status !== 200 || !verifyResA.body.token) {
+      throw new Error("Failed to verify User A: " + JSON.stringify(verifyResA));
+    }
+    const tokenA = verifyResA.body.token;
+    console.log("✓ User A registered and verified, JWT acquired.");
 
     // 5. Test Initial Stats (Zero tasks)
     console.log("\n[5/14] Testing initial stats for User A (zero tasks)...");
@@ -329,10 +338,18 @@ async function runStatsTests() {
       email: "bob@stats.test",
       password: "Password123!"
     });
-    if (regResB.status !== 201 || !regResB.body.token) {
+    if (regResB.status !== 201 || !regResB.body.requiresVerification) {
       throw new Error("Failed to register User B: " + JSON.stringify(regResB));
     }
-    const tokenB = regResB.body.token;
+    const emailB = getLastSentEmail();
+    const verifyResB = await api("POST", "/api/auth/verify-email", {
+      email: "bob@stats.test",
+      otp: emailB.otp
+    });
+    if (verifyResB.status !== 200 || !verifyResB.body.token) {
+      throw new Error("Failed to verify User B: " + JSON.stringify(verifyResB));
+    }
+    const tokenB = verifyResB.body.token;
 
     // User B should initially have 0 tasks
     const statsUserB = (await api("GET", "/api/tasks/stats", null, tokenB)).body.data;
